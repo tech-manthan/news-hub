@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+.pytest_cache/
+.env
+data/*.db
+data/*.json
+output/
+*.wav
+*.mp3
