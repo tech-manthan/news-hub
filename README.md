@@ -11,10 +11,32 @@ For the complete installation and operating process, see [docs/GUIDE.md](docs/GU
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-python -m pip install -e '.[test,tts]'
+python -m pip install -e '.[test,tts,browser,publish]'
 cp .env.example .env
+brew install ffmpeg
+python -m playwright install chromium
 python scripts/setup_tts.py
 ```
+
+## Start the dashboard
+
+Always run these commands from the repository root with the virtual environment active:
+
+```bash
+cd /Users/manthansharma/instagram/news-engine
+source .venv/bin/activate
+NEWS_UI_OPEN=1 python -m ui
+```
+
+The dashboard opens at <http://127.0.0.1:8765>. If it does not open automatically, paste that URL into your browser. To start without opening a browser:
+
+```bash
+NEWS_UI_OPEN=0 python -m ui
+```
+
+Keep this terminal running while using the dashboard. Stop the server with `Ctrl-C`. Change the port with `NEWS_UI_PORT=8791` if 8765 is already occupied.
+
+Before the first start, copy `.env.example` to `.env` and review every variable. The complete variable-by-variable reference is in [docs/GUIDE.md](docs/GUIDE.md).
 
 Piper is the local, open-source TTS backend for both English and Hindi; it needs no TTS API key or cloud call. The bundled setup downloads `en_US-lessac-medium` and `hi_IN-pratham-medium`. See the [Piper CLI documentation](https://github.com/OHF-Voice/piper1-gpl/blob/main/docs/CLI.md) and [voice list](https://github.com/OHF-Voice/piper1-gpl/blob/main/docs/VOICES.md).
 

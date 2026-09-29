@@ -56,7 +56,53 @@ TTS_MODEL_DIR=data/voices
 
 The default research path is free Google News RSS. `NEWSAPI_KEY` is optional; leave it empty to avoid a paid news API. Public research accepts only the configured/allowlisted sources and records source URLs, titles, timestamps, and evidence IDs in `research.json`. Browser enrichment is optional and does not bypass logins, paywalls, robots restrictions, or access controls.
 
-## 3. Install the free local voices
+### Environment variable reference
+
+| Variable | Required? | Purpose |
+|---|---|---|
+| `NEWSAPI_KEY` | No | Optional NewsAPI credential. Blank uses free Google News RSS. |
+| `NEWS_QUERY` | No | Default topic for CLI/scheduled runs; defaults to `technology`. |
+| `NEWS_LANGUAGE` | No | Research language; defaults to `en`. |
+| `NEWS_MAX_AGE_HOURS` | No | Freshness window; defaults to `48`. |
+| `NEWS_MINIMUM_SOURCES` | No | Minimum source count for CLI selection. |
+| `SCRIPT_MODEL` | No | Model passed to the local `claude -p` command; defaults to `opus`. |
+| `PUBLIC_RESEARCH` | No | Public research feature flag; keep `1` for the default path. |
+| `PUBLIC_RESEARCH_BROWSER` | No | Set `1` to enable Playwright enrichment/screenshots; otherwise `0`. |
+| `TTS_MODEL_DIR` | No | Directory containing Piper models. |
+| `ENGLISH_TTS_MODEL` | No | Documented English model path; the voice stage uses the matching file in `TTS_MODEL_DIR`. |
+| `HINDI_TTS_MODEL` | No | Documented Hindi model path; the voice stage uses the matching file in `TTS_MODEL_DIR`. |
+| `REMOTION_RENDER` | No | Set `1` to use the installed Remotion renderer; `0` uses FFmpeg. |
+| `NEWS_UI_PORT` | No | Local dashboard port; defaults to `8765`. |
+| `NEWS_UI_OPEN` | No | Set `1` to open a browser on startup; set `0` for headless startup. |
+| `META_USER_TOKEN` | Publishing only | Meta Graph API user token for Instagram setup. |
+| `META_API_VERSION` | Publishing only | Meta Graph API version; defaults to `v26.0`. |
+| `AUTO_REPLY_KEYWORD` | Reply tool only | Fixed substring the reply bot looks for. |
+| `AUTO_REPLY_TEXT` | Reply tool only | Fixed response sent to matching comments. |
+| `AUTO_REPLY_STATE` | Reply tool only | Local file used to prevent duplicate replies. |
+
+There are two files that are intentionally not environment variables: `data/youtube_client_secret.json` is the Google OAuth desktop client, and `data/yt_token.json` is generated after consent. Both stay local and must never be committed.
+
+## 3. Start the dashboard
+
+Run from the repository root, after activating the virtual environment and creating `.env`:
+
+```bash
+cd /Users/manthansharma/instagram/news-engine
+source .venv/bin/activate
+NEWS_UI_OPEN=1 python -m ui
+```
+
+Open <http://127.0.0.1:8765>. The server binds to localhost only. `NEWS_UI_OPEN=1` opens the browser automatically; use `NEWS_UI_OPEN=0` when starting from a terminal, script, or remote session. If the port is busy:
+
+```bash
+NEWS_UI_PORT=8791 NEWS_UI_OPEN=0 python -m ui
+```
+
+Stop the server with `Ctrl-C`. Do not close the terminal while you are using the dashboard. The UI is the control center: select a topic, fetch research, run Write/Assets/Voice/Render, review both languages and platforms, approve, and publish.
+
+If startup fails, run `python -m ui` from the repository root—not from inside `ui/`—and verify `.venv/bin/python` and `.env` exist.
+
+## 4. Install the free local voices
 
 Piper is the open-source local TTS backend. It runs on the Mac and does not call a paid speech service.
 
@@ -76,7 +122,7 @@ data/voices/hi_IN-pratham-medium.onnx.json
 
 The voice stage writes one WAV per scene and word-level timing metadata, so captions do not need a second transcription service.
 
-## 4. Generate a topic
+## 5. Generate a topic
 
 Research only:
 
@@ -113,7 +159,7 @@ short_<language>_<platform>.mp4       final video variants
 
 The script call is structured and Pydantic-validated. If Claude returns invalid JSON, the engine retries once with the validation errors. Scene types include `hook_stat`, `screenshot_scroll`, `image`, `bullets`, `code_card`, and `cta`. Every factual scene must refer to evidence from `research.json`.
 
-## 5. Use the dashboard
+## 6. Use the dashboard
 
 ```bash
 NEWS_UI_OPEN=1 python -m ui
@@ -136,7 +182,7 @@ Recommended review flow:
 
 The dashboard stores saved settings with higher precedence than `.env`, followed by code defaults. No scheduler or build command publishes by itself.
 
-## 6. Remotion and FFmpeg
+## 7. Remotion and FFmpeg
 
 FFmpeg is the dependable fallback renderer and is used when the Node/Remotion stack is not installed. Remotion is the scene composition layer for the richer template path; it does not replace FFmpeg for audio encoding, muxing, or final platform-compatible re-encoding.
 
