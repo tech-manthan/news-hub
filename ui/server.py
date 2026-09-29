@@ -24,6 +24,7 @@ from news_engine.scripts import generate_bilingual  # noqa: E402
 from news_engine.models import ShortScript, Topic, SourceArticle  # noqa: E402
 from news_engine.voice import write_scene_voice  # noqa: E402
 from news_engine.render import render_platforms  # noqa: E402
+from news_engine.assets import write_assets  # noqa: E402
 from news_engine.spec import LanguageSpec, validate_spec  # noqa: E402
 
 OUTPUT = ROOT / "output"
@@ -63,8 +64,16 @@ def topic_from_dir(folder: Path) -> dict:
     research["spec_en"] = research.get("spec_en_instagram")
     research["spec_hi"] = research.get("spec_hi_instagram")
     research["has_voice"] = any(folder.glob("voice_*.json"))
-    research["posted_instagram"] = read_json(folder / "posted_instagram_en.json")
-    research["posted_youtube"] = read_json(folder / "posted_youtube_en.json")
+    research["stage_status"] = {
+        "research": (folder / "research.json").exists(),
+        "script": any(folder.glob("spec_*_*.json")),
+        "assets": (folder / "assets.json").exists(),
+        "voice": any(folder.glob("voice_*_*.json")),
+        "render": any(folder.glob("short_*_*.mp4")),
+    }
+    for platform in ("instagram", "youtube"):
+        for language in ("en", "hi"):
+            research[f"posted_{platform}_{language}"] = read_json(folder / f"posted_{platform}_{language}.json")
     return research
 
 
@@ -153,6 +162,11 @@ class DashboardHandler(BaseHTTPRequestHandler):
             store = NewsStore(STORE_PATH)
             store.approve(topic_id)
             store.close()
+            research_path = OUTPUT / Path(topic_id).name / "research.json"
+            research = read_json(research_path)
+            if research is not None:
+                research["approval_status"] = "approved"
+                research_path.write_text(json.dumps(research, indent=2, ensure_ascii=False))
             for topic in list_topics():
                 if topic["id"] == topic_id:
                     topic["approval_status"] = "approved"
@@ -162,6 +176,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 topic["approval_status"] = "approved"
                 return self.send_json(topic)
             return self.send_json({"error": "topic not found"}, 404)
+        if parsed.path.startswith("/api/topics/") and parsed.path.endswith("/stage"):
+            return self._run_stage(unquote(parsed.path.split("/")[3]), self.body().get("stage", ""))
         if parsed.path.startswith("/api/topics/") and parsed.path.endswith("/script"):
             topic_id = unquote(parsed.path.split("/")[3])
             folder = OUTPUT / Path(topic_id).name
@@ -243,6 +259,38 @@ class DashboardHandler(BaseHTTPRequestHandler):
             record.write_text(json.dumps(result, indent=2, ensure_ascii=False))
             return self.send_json(result, 201)
         except (RuntimeError, FileNotFoundError, KeyError) as exc:
+            return self.send_json({"error": str(exc)}, 400)
+
+    def _run_stage(self, topic_id: str, stage: str):
+        """Run one restartable pipeline stage from the dashboard."""
+        allowed = {"script", "assets", "voice", "render"}
+        if stage not in allowed:
+            return self.send_json({"error": f"stage must be one of: {', '.join(sorted(allowed))}"}, 400)
+        folder = OUTPUT / Path(topic_id).name
+        research_path = folder / "research.json"
+        if not research_path.exists():
+            return self.send_json({"error": "research.json is missing; fetch the topic first"}, 400)
+        try:
+            research = read_json(research_path) or {}
+            if stage == "script":
+                topic = Topic(
+                    id=topic_id, query=research.get("query", "technology"), headline=research["headline"],
+                    summary=research["summary"], sources=tuple(SourceArticle(**source) for source in research["sources"]),
+                    confidence=research.get("confidence", 0.0), approval_status=research.get("approval_status", "pending"),
+                )
+                result = {key: str(path.name) for key, path in write_specs(topic, folder).items()}
+            elif stage == "assets":
+                result = {"assets": str(write_assets(research_path, folder, browser=os.getenv("PUBLIC_RESEARCH_BROWSER", "0") == "1").name)}
+            elif stage == "voice":
+                model_dir = Path(os.getenv("TTS_MODEL_DIR", "data/voices"))
+                result = {}
+                for language in ("en", "hi"):
+                    for platform in ("instagram", "youtube"):
+                        result[f"{language}_{platform}"] = str(write_scene_voice(folder / f"spec_{language}_{platform}.json", folder, language, model_dir, platform).name)
+            else:
+                result = {key: str(path.name) for key, path in render_platforms(folder).items()}
+            return self.send_json({"ok": True, "stage": stage, "result": result, "topic": topic_from_dir(folder)})
+        except (RuntimeError, FileNotFoundError, KeyError, ValueError, TypeError) as exc:
             return self.send_json({"error": str(exc)}, 400)
 
 

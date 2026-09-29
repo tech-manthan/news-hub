@@ -4,6 +4,8 @@ Local, human-reviewed news shorts for Instagram Reels and YouTube Shorts. It fol
 
 Pipeline: `research → script → assets → voice → render → human review → publish`.
 
+For the complete installation and operating process, see [docs/GUIDE.md](docs/GUIDE.md).
+
 ## Setup
 
 ```bash
