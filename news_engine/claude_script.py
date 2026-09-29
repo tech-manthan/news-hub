@@ -13,8 +13,10 @@ from .spec import LanguageSpec, platform_variant, validate_spec
 SYSTEM = """You write factual 30-45 second vertical news shorts from supplied research. Use only the supplied facts.
 No invented numbers, claims, quotes, or causal explanations. Spoken narration must sound natural and concise.
 The first scene must state the payoff immediately. The final scene is a one-sentence platform-specific CTA.
-English and Hindi specs are generated separately from the same source IDs. Hindi narration must be Devanagari,
-but proper names and technical terms may remain in Latin script. Avoid emojis and markdown in narration."""
+English and Hindi specs are generated separately from the same source IDs. Avoid emojis and markdown in narration.
+For Hindi, write all narration, headlines, bullets, and CTAs in natural Devanagari Hindi. Preserve only
+unavoidable proper names, brand names, and uppercase acronyms such as AI, OpenAI, Google, or The Guardian;
+translate ordinary English words such as tech, news, subscribe, runaway, intelligence, and godfathers."""
 
 
 def _schema() -> dict:
@@ -49,6 +51,10 @@ def _schema() -> dict:
 
 def _prompt(topic: Topic, language: str) -> str:
     sources = "\n".join(f"[{s.id}] {s.publisher}: {s.title}\n{s.description}\n{s.url}" for s in topic.sources)
+    language_rules = """
+For this Hindi script, use Devanagari Hindi throughout every scene. Do not write Hinglish. Translate common
+English words instead of leaving them in Latin script; only keep proper names, brand names, and uppercase acronyms.
+""" if language == "hi" else ""
     return f"""Create a {language} news short about this topic.
 
 Headline: {topic.headline}
@@ -66,6 +72,7 @@ Rules:
 - Every scene source_ids must refer only to supplied IDs.
 - Instagram CTA should invite following/commenting; YouTube CTA should invite subscribing.
 - YouTube metadata is SEO-oriented; Instagram caption is conversational.
+{language_rules}
 """
 
 

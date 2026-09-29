@@ -11,6 +11,12 @@ def _filter_path(path: Path) -> str:
     return str(path).replace("\\", "\\\\").replace(":", "\\:").replace("'", "\\'")
 
 
+def _remotion_static_props(topic_dir: Path, audio: Path) -> dict[str, str]:
+    """Return paths addressed through Remotion's public static-file server."""
+    prefix = Path("news-engine") / topic_dir.name
+    return {"audio": (prefix / audio.name).as_posix(), "assets": (prefix / "assets").as_posix()}
+
+
 def render_short(audio: Path, title: str, language: str, output: Path) -> Path:
     """Render a simple 9:16 news short with a title card and the generated narration."""
     if shutil.which("ffmpeg") is None:
@@ -37,7 +43,7 @@ def render_short(audio: Path, title: str, language: str, output: Path) -> Path:
     return output
 
 
-def _render_remotion(props: dict, output: Path) -> Path | None:
+def _render_remotion(props: dict, output: Path, topic_dir: Path) -> Path | None:
     """Use the Remotion template when its local Node install is available."""
     if os.getenv("REMOTION_RENDER", "0") != "1":
         return None
@@ -45,15 +51,27 @@ def _render_remotion(props: dict, output: Path) -> Path | None:
     binary = render_dir / "node_modules" / ".bin" / "remotion"
     if not binary.exists():
         raise RuntimeError("REMOTION_RENDER=1 but render/node_modules is missing; run `cd render && npm install`")
+    public_root = render_dir / "public" / "news-engine" / topic_dir.name
     props_path = output.with_suffix(".props.json")
-    props_path.write_text(json.dumps(props, ensure_ascii=False), encoding="utf-8")
+    public_root.parent.mkdir(parents=True, exist_ok=True)
+    shutil.rmtree(public_root, ignore_errors=True)
+    public_root.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(Path(props["audio"]), public_root / Path(props["audio"]).name)
+    assets = topic_dir / "assets"
+    if assets.exists():
+        shutil.copytree(assets, public_root / "assets", dirs_exist_ok=True)
+    remotion_props = {**props, **_remotion_static_props(topic_dir, Path(props["audio"]))}
+    props_path.write_text(json.dumps(remotion_props, ensure_ascii=False), encoding="utf-8")
     output.parent.mkdir(parents=True, exist_ok=True)
     command = [str(binary), "render", "src/index.ts", "NewsShort", str(output), "--props", str(props_path), "--codec", "h264", "--width", "1080", "--height", "1920", "--fps", "30"]
-    result = subprocess.run(command, cwd=render_dir, capture_output=True, text=True)
-    props_path.unlink(missing_ok=True)
-    if result.returncode:
-        raise RuntimeError(f"Remotion render failed: {result.stderr[-1000:]}")
-    return output
+    try:
+        result = subprocess.run(command, cwd=render_dir, capture_output=True, text=True)
+        if result.returncode:
+            raise RuntimeError(f"Remotion render failed: {result.stderr[-1000:]}")
+        return output
+    finally:
+        props_path.unlink(missing_ok=True)
+        shutil.rmtree(public_root, ignore_errors=True)
 
 
 def render_bilingual(topic_dir: Path) -> dict[str, Path]:
@@ -89,5 +107,5 @@ def render_platforms(topic_dir: Path) -> dict[str, Path]:
             _concat_audio([topic_dir / scene["file"] for scene in manifest["scenes"]], audio)
             output = topic_dir / f"short_{language}_{platform}.mp4"
             props = {"title": spec["title"], "language": language, "audio": str(audio.resolve()), "scenes": spec["scenes"], "assets": str((topic_dir / "assets").resolve())}
-            outputs[f"{language}_{platform}"] = _render_remotion(props, output) or render_short(audio, spec["title"], language, output)
+            outputs[f"{language}_{platform}"] = _render_remotion(props, output, topic_dir) or render_short(audio, spec["title"], language, output)
     return outputs

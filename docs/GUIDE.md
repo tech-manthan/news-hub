@@ -175,12 +175,14 @@ Recommended review flow:
 4. Switch between Instagram and YouTube variants.
 5. Edit narration, scene text, captions, title, description, and tags inline.
 6. Save the metadata and script.
-7. Build local voice previews, then render the selected language/platform variant.
+7. Click **Build all** to run script → assets → voice → render in order, or run one stage independently when iterating.
 8. Watch the MP4 and verify the hook, facts, pronunciation, captions, and final CTA.
 9. Mark the item approved.
 10. Click publish only after approval.
 
 The dashboard stores saved settings with higher precedence than `.env`, followed by code defaults. No scheduler or build command publishes by itself.
+
+Hindi copy is required to be Devanagari-first. Proper names, brands, and uppercase acronyms such as AI or Google may remain in Latin script; ordinary words such as “tech”, “runaway”, or “subscribe” are rejected by validation and sent back to Claude for correction.
 
 ## 7. Remotion and FFmpeg
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -52,8 +53,12 @@ def validate_spec(spec: LanguageSpec, expected_source_ids: set[str]) -> list[str
     for scene in spec.scenes:
         if set(scene.source_ids) - expected_source_ids:
             errors.append(f"scene {scene.type} references an unknown source ID")
-    if spec.language == "hi" and not any("ह" in scene.narration for scene in spec.scenes):
-        errors.append("Hindi narration must contain Devanagari text")
+    if spec.language == "hi":
+        latin_words = sorted({word for scene in spec.scenes for text in (scene.narration, scene.headline, *scene.bullets) for word in re.findall(r"[A-Za-z]{3,}", text) if not word.isupper() and not any(char.isupper() for char in word)})
+        if latin_words:
+            errors.append(f"Hindi scene copy must be Devanagari; translate these Latin words: {', '.join(latin_words[:12])}")
+        if not any("ह" in scene.narration for scene in spec.scenes):
+            errors.append("Hindi narration must contain Devanagari text")
     return errors
 
 
