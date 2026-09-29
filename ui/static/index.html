@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#111311">
+  <title>news·engine — newsroom</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="wordmark" href="/" aria-label="News engine home"><span>news</span><i>·</i>engine</a>
+      <div class="top-meta"><span class="status-dot"></span><span id="auth-label">checking source access</span><span class="top-divider"></span><span id="clock">—</span></div>
+      <button class="icon-button" id="settings-button" aria-label="Open settings">☷</button>
+    </header>
+
+    <main class="workspace">
+      <aside class="rail">
+        <div class="rail-heading"><span>Newsroom</span><span id="topic-count" class="count-badge">0</span></div>
+        <button class="new-topic" id="new-topic"><span>＋</span> New topic</button>
+        <div class="rail-label">Recent coverage</div>
+        <div id="topic-list" class="topic-list" role="list"></div>
+        <div class="rail-footer"><span class="tiny-mark">NE</span><span>Local workspace</span><span class="live-pill">LIVE</span></div>
+      </aside>
+
+      <section class="content" aria-live="polite">
+        <div id="empty-state" class="empty-state">
+          <div class="empty-kicker">THE DAILY DESK</div>
+          <h1>Turn verified reporting<br><em>into two voices.</em></h1>
+          <p>Find a story from authenticated sources, shape the short, then review English and Hindi before it leaves the desk.</p>
+          <button class="primary-button" id="empty-new">Start a topic <span>→</span></button>
+          <div class="demo-note"><span>✦</span> A demo story is loaded so you can explore the workspace.</div>
+        </div>
+        <div id="topic-view" class="topic-view" hidden></div>
+      </section>
+    </main>
+  </div>
+
+  <div id="topic-modal" class="modal-backdrop" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <button class="modal-close" id="modal-close" aria-label="Close">×</button>
+      <div class="eyebrow">NEW COVERAGE</div>
+      <h2 id="modal-title">What should we watch?</h2>
+      <p class="modal-copy">We’ll query the configured source—public RSS by default or NewsAPI when configured—filter for freshness, and prepare both languages from the same evidence.</p>
+      <label class="field-label" for="query-input">Topic or beat</label>
+      <input class="topic-input" id="query-input" value="technology" placeholder="e.g. India elections, AI policy, climate">
+      <div id="modal-error" class="form-error" hidden></div>
+      <div class="modal-actions"><button class="secondary-button" id="modal-cancel">Cancel</button><button class="primary-button" id="fetch-topic">Fetch story <span>→</span></button></div>
+    </div>
+  </div>
+  <div id="toast" class="toast" role="status" hidden></div>
+  <script src="/static/app.js"></script>
+</body>
+</html>

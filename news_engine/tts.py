@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import wave
 from pathlib import Path
 from typing import Protocol
 
@@ -13,47 +14,29 @@ class TTSBackend(Protocol):
     def synthesize(self, text: str, output: Path) -> None: ...
 
 
-class KokoroEnglishTTS:
-    language = "en"
+class PiperTTS:
+    """Local Piper voice. The model and its voice files stay on disk; no API is used."""
 
-    def __init__(self, voice: str = "af_heart", speed: float = 1.0):
-        self.voice = voice
+    def __init__(self, language: str, model_path: Path, speed: float = 1.0):
+        self.language = language
+        self.model_path = model_path
         self.speed = speed
 
     def synthesize(self, text: str, output: Path) -> None:
+        if not self.model_path.exists():
+            raise RuntimeError(
+                f"Piper model missing: {self.model_path}. Run `python scripts/setup_tts.py` first."
+            )
         try:
-            import numpy as np
-            import soundfile as sf
-            from kokoro import KPipeline
+            from piper import PiperVoice, SynthesisConfig
         except ImportError as exc:
-            raise RuntimeError("English TTS needs kokoro, numpy, and soundfile installed") from exc
+            raise RuntimeError("Install local open-source TTS with `python -m pip install piper-tts`") from exc
         output.parent.mkdir(parents=True, exist_ok=True)
-        chunks = [np.asarray(result.audio, dtype=np.float32) for result in KPipeline(lang_code="a")(text, voice=self.voice, speed=self.speed)]
-        if not chunks:
-            raise RuntimeError("English TTS returned no audio")
-        sf.write(output, np.concatenate(chunks), 24000)
-
-
-class GoogleHindiTTS:
-    language = "hi"
-
-    def __init__(self, voice_name: str = "hi-IN-Neural2-A", speaking_rate: float = 1.0):
-        self.voice_name = voice_name
-        self.speaking_rate = speaking_rate
-
-    def synthesize(self, text: str, output: Path) -> None:
-        try:
-            from google.cloud import texttospeech
-        except ImportError as exc:
-            raise RuntimeError("Hindi TTS needs google-cloud-texttospeech and GOOGLE_APPLICATION_CREDENTIALS") from exc
-        client = texttospeech.TextToSpeechClient()
-        response = client.synthesize_speech(
-            input=texttospeech.SynthesisInput(text=text),
-            voice=texttospeech.VoiceSelectionParams(language_code="hi-IN", name=self.voice_name),
-            audio_config=texttospeech.AudioConfig(audio_encoding=texttospeech.AudioEncoding.MP3, speaking_rate=self.speaking_rate),
-        )
-        output.parent.mkdir(parents=True, exist_ok=True)
-        output.write_bytes(response.audio_content)
+        voice = PiperVoice.load(str(self.model_path))
+        # Piper's length scale is inverse speed: 1.0 is normal, lower is faster.
+        config = SynthesisConfig(length_scale=max(0.5, min(2.0, 1.0 / self.speed)))
+        with wave.open(str(output), "wb") as wav_file:
+            voice.synthesize_wav(text, wav_file, syn_config=config)
 
 
 def write_voice_artifacts(scripts: dict[str, ShortScript], output_dir: Path, backends: dict[str, TTSBackend]) -> Path:
@@ -65,8 +48,7 @@ def write_voice_artifacts(scripts: dict[str, ShortScript], output_dir: Path, bac
             raise ValueError(f"no TTS backend configured for {language}")
         if backend.language != language:
             raise ValueError(f"TTS backend language mismatch for {language}")
-        extension = ".mp3" if language == "hi" else ".wav"
-        path = output_dir / f"voice_{language}{extension}"
+        path = output_dir / f"voice_{language}.wav"
         backend.synthesize(script.narration, path)
         manifest["scripts"][language] = {"audio": path.name, "source_ids": list(script.source_ids)}
     manifest_path = output_dir / "voice.json"

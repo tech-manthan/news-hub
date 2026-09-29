@@ -23,6 +23,14 @@ def write_topic_artifacts(topic: Topic, output_dir: Path, store: NewsStore) -> d
     return paths
 
 
+def write_research(topic: Topic, output_dir: Path, store: NewsStore) -> Path:
+    store.save_topic(topic)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    path = output_dir / "research.json"
+    path.write_text(json.dumps(topic.to_dict(), indent=2, ensure_ascii=False))
+    return path
+
+
 def require_approved(store: NewsStore, topic: Topic) -> None:
     if topic.confidence < 0.6:
         raise PermissionError("topic confidence is below the publish threshold; obtain more independent sources")

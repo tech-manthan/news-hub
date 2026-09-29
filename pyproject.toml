@@ -1,13 +1,22 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "news-engine"
 version = "0.1.0"
 requires-python = ">=3.11"
-dependencies = ["requests>=2.31"]
+dependencies = ["requests>=2.31", "pydantic>=2.11"]
 
 [project.optional-dependencies]
-tts = ["kokoro>=0.9.4", "numpy>=1.26", "soundfile>=0.12", "google-cloud-texttospeech>=2.16"]
+tts = ["piper-tts>=1.2"]
+browser = ["playwright>=1.50"]
+publish = ["google-api-python-client>=2.130", "google-auth-oauthlib>=1.2"]
 test = ["pytest>=8.0"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
+
+[tool.setuptools.packages.find]
+include = ["news_engine*", "ui*"]
