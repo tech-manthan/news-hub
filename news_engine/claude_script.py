@@ -4,6 +4,7 @@ import json
 import os
 import subprocess
 import tempfile
+from copy import deepcopy
 from pathlib import Path
 
 from .models import Topic
@@ -17,7 +18,33 @@ but proper names and technical terms may remain in Latin script. Avoid emojis an
 
 
 def _schema() -> dict:
-    return {"type": "object", "properties": LanguageSpec.model_json_schema()["properties"], "required": list(LanguageSpec.model_json_schema()["required"]), "additionalProperties": False}
+    """Return a Claude-compatible schema with local Pydantic refs inlined.
+
+    Claude's ``--json-schema`` validator rejects Pydantic's otherwise valid
+    ``$defs``/``$ref`` form (for example ``#/$defs/Scene``), so the schema
+    passed over the CLI boundary must be self-contained.
+    """
+    schema = LanguageSpec.model_json_schema()
+    definitions = schema.get("$defs", {})
+
+    def expand(value: object, stack: tuple[str, ...] = ()) -> object:
+        if isinstance(value, list):
+            return [expand(item, stack) for item in value]
+        if not isinstance(value, dict):
+            return value
+        ref = value.get("$ref")
+        if isinstance(ref, str) and ref.startswith("#/$defs/"):
+            name = ref.removeprefix("#/$defs/")
+            if name in stack:
+                raise ValueError(f"recursive JSON schema definition: {name}")
+            expanded = expand(deepcopy(definitions[name]), stack + (name,))
+            siblings = {key: expand(item, stack) for key, item in value.items() if key != "$ref"}
+            if isinstance(expanded, dict):
+                expanded.update(siblings)
+            return expanded
+        return {key: expand(item, stack) for key, item in value.items() if key != "$defs"}
+
+    return expand(schema)
 
 
 def _prompt(topic: Topic, language: str) -> str:
