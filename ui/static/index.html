@@ -81,6 +81,10 @@
       <div class="modal-actions"><button class="secondary-button" id="delete-cancel">Keep topic</button><button class="danger-button" id="delete-confirm">Delete permanently</button></div>
     </div>
   </div>
+  <aside id="activity-log" class="activity-log" aria-label="Activity log">
+    <div class="activity-head"><div><span class="activity-kicker">LIVE WORKSPACE</span><strong>Activity log</strong></div><button id="activity-toggle" class="activity-toggle" type="button" aria-expanded="true" aria-label="Collapse activity log">−</button></div>
+    <div id="activity-items" class="activity-items" role="log" aria-live="polite"></div>
+  </aside>
   <div id="toast" class="toast" role="status" hidden></div>
   <script src="/static/app.js"></script>
 </body>
