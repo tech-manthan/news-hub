@@ -73,6 +73,14 @@
       <div class="modal-actions"><button class="secondary-button" id="modal-cancel">Cancel</button><button class="primary-button" id="fetch-topic">Fetch story <span>→</span></button></div>
     </div>
   </div>
+  <div id="delete-confirm-modal" class="modal-backdrop" hidden>
+    <div class="modal confirm-modal" role="dialog" aria-modal="true" aria-labelledby="delete-confirm-title">
+      <div class="eyebrow">REMOVE COVERAGE</div>
+      <h2 id="delete-confirm-title">Delete this topic?</h2>
+      <p class="modal-copy">This removes the research, scripts, audio, images, and videos stored for this topic. It cannot be undone.</p>
+      <div class="modal-actions"><button class="secondary-button" id="delete-cancel">Keep topic</button><button class="danger-button" id="delete-confirm">Delete permanently</button></div>
+    </div>
+  </div>
   <div id="toast" class="toast" role="status" hidden></div>
   <script src="/static/app.js"></script>
 </body>
