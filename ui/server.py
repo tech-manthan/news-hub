@@ -26,7 +26,7 @@ from news_engine.store import NewsStore  # noqa: E402
 from news_engine.scripts import generate_bilingual  # noqa: E402
 from news_engine.models import ShortScript, Topic, SourceArticle  # noqa: E402
 from news_engine.voice import write_scene_voice  # noqa: E402
-from news_engine.tts import available_voices, voice_catalog, PiperTTS, resolve_voice_model  # noqa: E402
+from news_engine.tts import KOKORO_VOICES, available_voices, voice_catalog, PiperTTS, KokoroTTS, resolve_voice_model  # noqa: E402
 from news_engine.automation import TrendingAutomation  # noqa: E402
 from news_engine.settings import read_settings, write_settings, SETTING_KEYS, SETTINGS_PATH  # noqa: E402
 from news_engine.render import render_platforms  # noqa: E402
@@ -162,13 +162,15 @@ class DashboardHandler(BaseHTTPRequestHandler):
             return self.send_json({"provider": "NewsAPI" if configured() else "Google News RSS", "authenticated": configured(), "demo_available": True, "output_count": len(list_topics())})
         if parsed.path == "/api/voices":
             model_dir = Path(os.getenv("TTS_MODEL_DIR", "data/voices"))
-            return self.send_json({"en": available_voices(model_dir, "en"), "hi": available_voices(model_dir, "hi"), "catalog": {"en": voice_catalog("en"), "hi": voice_catalog("hi")}, "model_dir": str(model_dir)})
+            return self.send_json({"piper": {"en": available_voices(model_dir, "en"), "hi": available_voices(model_dir, "hi"), "catalog": {"en": voice_catalog("en"), "hi": voice_catalog("hi")}}, "kokoro": {"en": list(KOKORO_VOICES), "hi": []}, "model_dir": str(model_dir)})
         if parsed.path == "/api/automation":
             return self.send_json(AUTOMATION.snapshot())
         if parsed.path == "/api/settings":
             values = {key: os.getenv(key, "") for key in SETTING_KEYS}
             values["ENGLISH_TTS_SPEED"] = values.get("ENGLISH_TTS_SPEED") or "1.0"
             values["HINDI_TTS_SPEED"] = values.get("HINDI_TTS_SPEED") or "1.0"
+            values["ENGLISH_TTS_BACKEND"] = values.get("ENGLISH_TTS_BACKEND") or "kokoro"
+            values["HINDI_TTS_BACKEND"] = values.get("HINDI_TTS_BACKEND") or "piper"
             values["NEWS_BG_PRESET"] = values.get("NEWS_BG_PRESET") or "midnight"
             values["NEWS_FONT"] = values.get("NEWS_FONT") or "inter"
             values["NEWS_TEMPLATE"] = values.get("NEWS_TEMPLATE") or "editorial"
@@ -177,6 +179,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
             values["bg_presets"] = {"midnight": "Midnight", "sunset": "Sunset", "forest": "Forest", "mono_dark": "Mono dark"}
             values["fonts"] = {"inter": "Inter", "poppins": "Poppins", "space_grotesk": "Space Grotesk", "plex_sans": "IBM Plex Sans"}
             values["templates"] = {"editorial": "Editorial", "bulletin": "Bulletin", "minimal": "Minimal"}
+            values["tts_backends"] = {"piper": "Piper · local model", "kokoro": "Kokoro · reel-engine voices"}
             return self.send_json(values)
         if parsed.path == "/api/topics":
             topics = list_topics()
@@ -240,12 +243,18 @@ class DashboardHandler(BaseHTTPRequestHandler):
             if not text:
                 return self.send_json({"error": "preview text is required"}, 400)
             try:
-                model_dir = Path(os.getenv("TTS_MODEL_DIR", "data/voices"))
+                backend_name = str(payload.get("backend", "kokoro" if language == "en" else "piper"))
                 voice = str(payload.get("voice", "")).strip() or os.getenv(f"{'ENGLISH' if language == 'en' else 'HINDI'}_TTS_VOICE")
                 speed = max(0.5, min(2.0, float(payload.get("speed", 1.0))))
                 VOICE_PREVIEW_DIR.mkdir(parents=True, exist_ok=True)
                 filename = f"preview_{language}.wav"
-                PiperTTS(language, resolve_voice_model(model_dir, language, voice), speed=speed).synthesize(text[:500], VOICE_PREVIEW_DIR / filename)
+                if backend_name == "kokoro":
+                    if language != "en":
+                        return self.send_json({"error": "Kokoro currently supports English preview only"}, 400)
+                    KokoroTTS(voice or "am_michael", speed=speed).synthesize(text[:500], VOICE_PREVIEW_DIR / filename)
+                else:
+                    model_dir = Path(os.getenv("TTS_MODEL_DIR", "data/voices"))
+                    PiperTTS(language, resolve_voice_model(model_dir, language, voice), speed=speed).synthesize(text[:500], VOICE_PREVIEW_DIR / filename)
                 return self.send_json({"ok": True, "url": f"/media/voice-previews/{filename}?t={int(os.path.getmtime(VOICE_PREVIEW_DIR / filename))}"})
             except (RuntimeError, ValueError, OSError) as exc:
                 return self.send_json({"error": str(exc)}, 400)
@@ -327,7 +336,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     voice_name = payload.get(f"voice_{language}") or os.getenv(f"{'ENGLISH' if language == 'en' else 'HINDI'}_TTS_VOICE")
                     for platform in ("instagram", "youtube"):
                         speed = float(payload.get(f"speed_{language}") or os.getenv(f"{'ENGLISH' if language == 'en' else 'HINDI'}_TTS_SPEED", "1.0"))
-                        manifests[f"{language}_{platform}"] = read_json(write_scene_voice(OUTPUT / topic_id / f"spec_{language}_{platform}.json", OUTPUT / topic_id, language, model_dir, platform, voice_name, speed))
+                        backend_name = payload.get(f"backend_{language}") or os.getenv(f"{'ENGLISH' if language == 'en' else 'HINDI'}_TTS_BACKEND", "kokoro" if language == "en" else "piper")
+                        manifests[f"{language}_{platform}"] = read_json(write_scene_voice(OUTPUT / topic_id / f"spec_{language}_{platform}.json", OUTPUT / topic_id, language, model_dir, platform, voice_name, speed, backend_name))
                 return self.send_json({"ok": True, "manifests": manifests})
             except (RuntimeError, ValueError, KeyError) as exc:
                 return self.send_json({"error": str(exc)}, 400)
@@ -398,7 +408,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     voice_name = payload.get(f"voice_{language}") or os.getenv(f"{'ENGLISH' if language == 'en' else 'HINDI'}_TTS_VOICE")
                     for platform in ("instagram", "youtube"):
                         speed = float(payload.get(f"speed_{language}") or os.getenv(f"{'ENGLISH' if language == 'en' else 'HINDI'}_TTS_SPEED", "1.0"))
-                        result[f"{language}_{platform}"] = str(write_scene_voice(folder / f"spec_{language}_{platform}.json", folder, language, model_dir, platform, voice_name, speed).name)
+                        backend_name = payload.get(f"backend_{language}") or os.getenv(f"{'ENGLISH' if language == 'en' else 'HINDI'}_TTS_BACKEND", "kokoro" if language == "en" else "piper")
+                        result[f"{language}_{platform}"] = str(write_scene_voice(folder / f"spec_{language}_{platform}.json", folder, language, model_dir, platform, voice_name, speed, backend_name).name)
             else:
                 result = {key: str(path.name) for key, path in render_platforms(folder).items()}
             return self.send_json({"ok": True, "stage": stage, "result": result, "topic": topic_from_dir(folder)})

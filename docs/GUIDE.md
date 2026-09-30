@@ -51,6 +51,9 @@ PUBLIC_RESEARCH=1
 PUBLIC_RESEARCH_BROWSER=0
 ENGLISH_TTS_MODEL=data/voices/en_US-lessac-medium.onnx
 HINDI_TTS_MODEL=data/voices/hi_IN-pratham-medium.onnx
+ENGLISH_TTS_BACKEND=kokoro
+HINDI_TTS_BACKEND=piper
+KOKORO_PYTHON=
 TTS_MODEL_DIR=data/voices
 ```
 
@@ -73,6 +76,9 @@ The default research path is free Google News RSS. `NEWSAPI_KEY` is optional; le
 | `HINDI_TTS_MODEL` | No | Documented Hindi model path; the voice stage uses the matching file in `TTS_MODEL_DIR`. |
 | `ENGLISH_TTS_VOICE` | No | Selected English Piper `.onnx` filename; can also be changed in dashboard Settings. |
 | `HINDI_TTS_VOICE` | No | Selected Hindi Piper `.onnx` filename; can also be changed in dashboard Settings. |
+| `ENGLISH_TTS_BACKEND` | No | `kokoro` by default; `piper` is also available for English. |
+| `HINDI_TTS_BACKEND` | No | `piper` by default; Kokoro is currently English-only. |
+| `KOKORO_PYTHON` | No | Optional path to the reel-engine Python environment; auto-detects `../reel-engine/.venv/bin/python`. |
 | `REMOTION_RENDER` | No | Set `1` to use the installed Remotion renderer; `0` uses FFmpeg. |
 | `NEWS_UI_PORT` | No | Local dashboard port; defaults to `8765`. |
 | `NEWS_UI_OPEN` | No | Set `1` to open a browser on startup; set `0` for headless startup. |
@@ -124,7 +130,9 @@ data/voices/hi_IN-pratham-medium.onnx.json
 
 The voice stage writes one WAV per scene and word-level timing metadata, so captions do not need a second transcription service.
 
-To add another local Piper voice from the dashboard, open **Settings → Voices**, enter its official id (for example `en_US-amy-medium`), and click **Install voice**. The model and its `.onnx.json` configuration are downloaded into `TTS_MODEL_DIR`; the new model then appears in both voice selectors. The same panel includes independent English/Hindi speed controls and a voice preview. Piper’s supported voice ids are documented in its [official voice list](https://github.com/OHF-Voice/piper1-gpl/blob/main/docs/VOICES.md).
+To add another local Piper voice from the dashboard, open **Settings → Voices**, enter its official id (for example `en_US-amy-medium`), and click **Install voice**. The model and its `.onnx.json` configuration are downloaded into `TTS_MODEL_DIR`; the new model then appears in both voice selectors. The same panel includes independent English/Hindi backend selectors, speed controls, and voice previews. Piper’s supported voice ids are documented in its [official voice list](https://github.com/OHF-Voice/piper1-gpl/blob/main/docs/VOICES.md).
+
+Kokoro does not download a second model for News Engine. It invokes the existing Kokoro package from reel-engine and reuses its local Hugging Face cache. The dashboard exposes Kokoro's downloaded voice catalog; choose any voice and build English audio. If reel-engine is elsewhere, set `KOKORO_PYTHON` to its `.venv/bin/python` path. Kokoro word timings are written into the scene manifest and drive captions directly.
 
 ## 5. Generate a topic
 

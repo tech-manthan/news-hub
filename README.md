@@ -38,7 +38,7 @@ Keep this terminal running while using the dashboard. Stop the server with `Ctrl
 
 Before the first start, copy `.env.example` to `.env` and review every variable. The complete variable-by-variable reference is in [docs/GUIDE.md](docs/GUIDE.md).
 
-Piper is the local, open-source TTS backend for both English and Hindi; it needs no TTS API key or cloud call. The bundled setup downloads `en_US-lessac-medium` and `hi_IN-pratham-medium`. See the [Piper CLI documentation](https://github.com/OHF-Voice/piper1-gpl/blob/main/docs/CLI.md) and [voice list](https://github.com/OHF-Voice/piper1-gpl/blob/main/docs/VOICES.md).
+Piper is the local, open-source TTS backend for Hindi (and remains available for English); it needs no TTS API key or cloud call. English defaults to Kokoro when the sibling `../reel-engine/.venv` exists, reusing reel-engine's downloaded model and voice environment. Set `KOKORO_PYTHON` if that environment lives elsewhere. Switch backend, voice, and speed from dashboard **Settings → Voices**. See the [Piper CLI documentation](https://github.com/OHF-Voice/piper1-gpl/blob/main/docs/CLI.md) and [voice list](https://github.com/OHF-Voice/piper1-gpl/blob/main/docs/VOICES.md).
 
 For browser-backed source enrichment and screenshots:
 

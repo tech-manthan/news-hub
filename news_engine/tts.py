@@ -1,6 +1,10 @@
 from __future__ import annotations
 
 import json
+import os
+import subprocess
+import sys
+import tempfile
 from urllib.request import urlopen
 import wave
 from pathlib import Path
@@ -11,6 +15,32 @@ from .models import ShortScript
 DEFAULT_VOICE_MODELS = {"en": "en_US-lessac-medium.onnx", "hi": "hi_IN-pratham-medium.onnx"}
 PIPER_VOICES_URL = "https://huggingface.co/rhasspy/piper-voices/resolve/main/voices.json?download=true"
 _VOICE_CATALOG_CACHE: dict[str, list[str]] | None = None
+KOKORO_VOICES = {
+    "af_heart": "Heart (US, female)", "af_bella": "Bella (US, female)", "af_nicole": "Nicole (US, female)",
+    "af_sarah": "Sarah (US, female)", "af_sky": "Sky (US, female)", "af_nova": "Nova (US, female)",
+    "af_alloy": "Alloy (US, female)", "af_aoede": "Aoede (US, female)", "af_jessica": "Jessica (US, female)",
+    "af_kore": "Kore (US, female)", "af_river": "River (US, female)", "am_michael": "Michael (US, male)",
+    "am_adam": "Adam (US, male)", "am_eric": "Eric (US, male)", "am_liam": "Liam (US, male)",
+    "am_onyx": "Onyx (US, male)", "am_echo": "Echo (US, male)", "am_fenrir": "Fenrir (US, male)",
+    "am_puck": "Puck (US, male)", "am_santa": "Santa (US, male)", "bf_emma": "Emma (UK, female)",
+    "bf_isabella": "Isabella (UK, female)", "bf_alice": "Alice (UK, female)", "bf_lily": "Lily (UK, female)",
+    "bm_george": "George (UK, male)", "bm_lewis": "Lewis (UK, male)", "bm_daniel": "Daniel (UK, male)",
+    "bm_fable": "Fable (UK, male)",
+}
+
+
+def available_backends() -> list[str]:
+    return ["piper", "kokoro"]
+
+
+def resolve_kokoro_python() -> Path:
+    configured = os.getenv("KOKORO_PYTHON", "").strip()
+    candidates = [Path(configured)] if configured else []
+    candidates += [Path(__file__).resolve().parents[2] / "reel-engine" / ".venv" / "bin" / "python", Path(sys.executable)]
+    for candidate in candidates:
+        if candidate and candidate.exists():
+            return candidate
+    raise RuntimeError("Kokoro Python environment not found. Set KOKORO_PYTHON to reel-engine/.venv/bin/python.")
 
 
 def available_voices(model_dir: Path, language: str) -> list[str]:
@@ -47,7 +77,7 @@ def resolve_voice_model(model_dir: Path, language: str, voice_name: str | None =
 class TTSBackend(Protocol):
     language: str
 
-    def synthesize(self, text: str, output: Path) -> None: ...
+    def synthesize(self, text: str, output: Path) -> list[dict] | None: ...
 
 
 class PiperTTS:
@@ -73,6 +103,29 @@ class PiperTTS:
         config = SynthesisConfig(length_scale=max(0.5, min(2.0, 1.0 / self.speed)))
         with wave.open(str(output), "wb") as wav_file:
             voice.synthesize_wav(text, wav_file, syn_config=config)
+
+
+class KokoroTTS:
+    """Reuse reel-engine's local Kokoro installation without downloading another model."""
+
+    language = "en"
+
+    def __init__(self, voice: str, speed: float = 1.0):
+        self.voice = voice
+        self.speed = speed
+
+    def synthesize(self, text: str, output: Path) -> list[dict]:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix="news-kokoro-") as directory:
+            root = Path(directory)
+            text_path = root / "text.txt"
+            timings_path = root / "timings.json"
+            text_path.write_text(text, encoding="utf-8")
+            command = [str(resolve_kokoro_python()), str(Path(__file__).resolve().parents[1] / "scripts" / "kokoro_synth.py"), "--text", str(text_path), "--output", str(output), "--timings", str(timings_path), "--voice", self.voice, "--speed", str(self.speed)]
+            result = subprocess.run(command, cwd=Path(__file__).resolve().parents[1], capture_output=True, text=True)
+            if result.returncode:
+                raise RuntimeError(result.stderr[-1200:] or "Kokoro synthesis failed")
+            return json.loads(timings_path.read_text()) if timings_path.exists() else []
 
 
 def write_voice_artifacts(scripts: dict[str, ShortScript], output_dir: Path, backends: dict[str, TTSBackend]) -> Path:

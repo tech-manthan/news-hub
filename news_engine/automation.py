@@ -92,8 +92,10 @@ class TrendingAutomation:
         model_dir = Path(os.getenv("TTS_MODEL_DIR", "data/voices"))
         for language in ("en", "hi"):
             voice_name = os.getenv(f"{'ENGLISH' if language == 'en' else 'HINDI'}_TTS_VOICE")
+            backend_name = os.getenv(f"{'ENGLISH' if language == 'en' else 'HINDI'}_TTS_BACKEND", "kokoro" if language == "en" else "piper")
+            speed = float(os.getenv(f"{'ENGLISH' if language == 'en' else 'HINDI'}_TTS_SPEED", "1.0"))
             for platform in ("instagram", "youtube"):
-                write_scene_voice(folder / f"spec_{language}_{platform}.json", folder, language, model_dir, platform, voice_name)
+                write_scene_voice(folder / f"spec_{language}_{platform}.json", folder, language, model_dir, platform, voice_name, speed, backend_name)
         render_platforms(folder)
         with self.lock:
             self.state["last_topic"] = topic.id
