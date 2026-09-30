@@ -27,5 +27,9 @@ class NewsStore:
         row = self.conn.execute("SELECT approval_status FROM topics WHERE id=?", (topic_id,)).fetchone()
         return bool(row and row[0] == "approved")
 
+    def delete(self, topic_id: str) -> None:
+        self.conn.execute("DELETE FROM topics WHERE id=?", (topic_id,))
+        self.conn.commit()
+
     def close(self) -> None:
         self.conn.close()

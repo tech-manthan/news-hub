@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import json
 import os
+import re
+import shutil
+import subprocess
 import sys
 import threading
 import webbrowser
@@ -23,7 +26,7 @@ from news_engine.store import NewsStore  # noqa: E402
 from news_engine.scripts import generate_bilingual  # noqa: E402
 from news_engine.models import ShortScript, Topic, SourceArticle  # noqa: E402
 from news_engine.voice import write_scene_voice  # noqa: E402
-from news_engine.tts import available_voices  # noqa: E402
+from news_engine.tts import available_voices, PiperTTS, resolve_voice_model  # noqa: E402
 from news_engine.automation import TrendingAutomation  # noqa: E402
 from news_engine.settings import read_settings, write_settings, SETTING_KEYS, SETTINGS_PATH  # noqa: E402
 from news_engine.render import render_platforms  # noqa: E402
@@ -31,6 +34,7 @@ from news_engine.assets import write_assets  # noqa: E402
 from news_engine.spec import LanguageSpec, validate_spec  # noqa: E402
 
 OUTPUT = ROOT / "output"
+VOICE_PREVIEW_DIR = ROOT / "data" / "voice-previews"
 STORE_PATH = ROOT / "data" / "news.db"
 STATIC = Path(__file__).with_name("static")
 load_env(ROOT / ".env")
@@ -145,17 +149,29 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     if path.exists():
                         return self.send_file(path, "audio/wav")
             return self.send_json({"error": "media not found"}, 404)
+        if parsed.path.startswith("/media/voice-previews/"):
+            filename = Path(unquote(parsed.path.rsplit("/", 1)[-1])).name
+            path = VOICE_PREVIEW_DIR / filename
+            return self.send_file(path, "audio/wav") if path.exists() and filename.endswith(".wav") else self.send_json({"error": "preview not found"}, 404)
         if parsed.path == "/api/status":
             return self.send_json({"provider": "NewsAPI" if configured() else "Google News RSS", "authenticated": configured(), "demo_available": True, "output_count": len(list_topics())})
         if parsed.path == "/api/voices":
             model_dir = Path(os.getenv("TTS_MODEL_DIR", "data/voices"))
-            return self.send_json({"en": available_voices(model_dir, "en"), "hi": available_voices(model_dir, "hi")})
+            return self.send_json({"en": available_voices(model_dir, "en"), "hi": available_voices(model_dir, "hi"), "model_dir": str(model_dir)})
         if parsed.path == "/api/automation":
             return self.send_json(AUTOMATION.snapshot())
         if parsed.path == "/api/settings":
             values = {key: os.getenv(key, "") for key in SETTING_KEYS}
+            values["ENGLISH_TTS_SPEED"] = values.get("ENGLISH_TTS_SPEED") or "1.0"
+            values["HINDI_TTS_SPEED"] = values.get("HINDI_TTS_SPEED") or "1.0"
+            values["NEWS_BG_PRESET"] = values.get("NEWS_BG_PRESET") or "midnight"
+            values["NEWS_FONT"] = values.get("NEWS_FONT") or "inter"
+            values["NEWS_TEMPLATE"] = values.get("NEWS_TEMPLATE") or "editorial"
             values["TTS_MODEL_DIR"] = os.getenv("TTS_MODEL_DIR", "data/voices")
             values["has_meta_token"] = bool(os.getenv("META_USER_TOKEN", "").strip())
+            values["bg_presets"] = {"midnight": "Midnight", "sunset": "Sunset", "forest": "Forest", "mono_dark": "Mono dark"}
+            values["fonts"] = {"inter": "Inter", "poppins": "Poppins", "space_grotesk": "Space Grotesk", "plex_sans": "IBM Plex Sans"}
+            values["templates"] = {"editorial": "Editorial", "bulletin": "Bulletin", "minimal": "Minimal"}
             return self.send_json(values)
         if parsed.path == "/api/topics":
             topics = list_topics()
@@ -197,6 +213,49 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 return self.send_json({"ok": True, "settings": {key: os.getenv(key, "") for key in SETTING_KEYS}})
             except (OSError, ValueError) as exc:
                 return self.send_json({"error": str(exc)}, 400)
+        if parsed.path == "/api/voices/download":
+            payload = self.body()
+            voice = Path(str(payload.get("voice", "")).strip()).name
+            if not re.fullmatch(r"(?:en_US|hi_IN)-[a-z0-9_]+-(?:low|medium|high)", voice):
+                return self.send_json({"error": "Use a Piper voice id such as en_US-lessac-medium or hi_IN-pratham-medium"}, 400)
+            model_dir = (ROOT / os.getenv("TTS_MODEL_DIR", "data/voices")).resolve()
+            try:
+                result = subprocess.run([sys.executable, "-m", "piper.download_voices", "--data-dir", str(model_dir), voice], cwd=ROOT, capture_output=True, text=True, timeout=600)
+                if result.returncode:
+                    return self.send_json({"error": result.stderr[-1000:] or "Piper voice download failed"}, 400)
+                return self.send_json({"ok": True, "voice": voice, "en": available_voices(model_dir, "en"), "hi": available_voices(model_dir, "hi")})
+            except (OSError, subprocess.TimeoutExpired) as exc:
+                return self.send_json({"error": str(exc)}, 400)
+        if parsed.path == "/api/voice-preview":
+            payload = self.body()
+            language = str(payload.get("language", "en"))
+            if language not in ("en", "hi"):
+                return self.send_json({"error": "language must be en or hi"}, 400)
+            text = str(payload.get("text", "")).strip()
+            if not text:
+                return self.send_json({"error": "preview text is required"}, 400)
+            try:
+                model_dir = Path(os.getenv("TTS_MODEL_DIR", "data/voices"))
+                voice = str(payload.get("voice", "")).strip() or os.getenv(f"{'ENGLISH' if language == 'en' else 'HINDI'}_TTS_VOICE")
+                speed = max(0.5, min(2.0, float(payload.get("speed", 1.0))))
+                VOICE_PREVIEW_DIR.mkdir(parents=True, exist_ok=True)
+                filename = f"preview_{language}.wav"
+                PiperTTS(language, resolve_voice_model(model_dir, language, voice), speed=speed).synthesize(text[:500], VOICE_PREVIEW_DIR / filename)
+                return self.send_json({"ok": True, "url": f"/media/voice-previews/{filename}?t={int(os.path.getmtime(VOICE_PREVIEW_DIR / filename))}"})
+            except (RuntimeError, ValueError, OSError) as exc:
+                return self.send_json({"error": str(exc)}, 400)
+        if parsed.path.startswith("/api/topics/") and parsed.path.endswith("/delete"):
+            topic_id = Path(unquote(parsed.path.split("/")[3])).name
+            if topic_id == "demo-ai-policy":
+                return self.send_json({"error": "The demo topic cannot be deleted"}, 400)
+            folder = OUTPUT / topic_id
+            if not folder.is_dir():
+                return self.send_json({"error": "topic not found"}, 404)
+            store = NewsStore(STORE_PATH)
+            store.delete(topic_id)
+            store.close()
+            shutil.rmtree(folder)
+            return self.send_json({"ok": True, "deleted": topic_id})
         if parsed.path.startswith("/api/topics/") and parsed.path.endswith("/approve"):
             topic_id = unquote(parsed.path.split("/")[3])
             store = NewsStore(STORE_PATH)
@@ -262,7 +321,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 for language in ("en", "hi"):
                     voice_name = payload.get(f"voice_{language}") or os.getenv(f"{'ENGLISH' if language == 'en' else 'HINDI'}_TTS_VOICE")
                     for platform in ("instagram", "youtube"):
-                        manifests[f"{language}_{platform}"] = read_json(write_scene_voice(OUTPUT / topic_id / f"spec_{language}_{platform}.json", OUTPUT / topic_id, language, model_dir, platform, voice_name))
+                        speed = float(payload.get(f"speed_{language}") or os.getenv(f"{'ENGLISH' if language == 'en' else 'HINDI'}_TTS_SPEED", "1.0"))
+                        manifests[f"{language}_{platform}"] = read_json(write_scene_voice(OUTPUT / topic_id / f"spec_{language}_{platform}.json", OUTPUT / topic_id, language, model_dir, platform, voice_name, speed))
                 return self.send_json({"ok": True, "manifests": manifests})
             except (RuntimeError, ValueError, KeyError) as exc:
                 return self.send_json({"error": str(exc)}, 400)
@@ -332,7 +392,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 for language in ("en", "hi"):
                     voice_name = payload.get(f"voice_{language}") or os.getenv(f"{'ENGLISH' if language == 'en' else 'HINDI'}_TTS_VOICE")
                     for platform in ("instagram", "youtube"):
-                        result[f"{language}_{platform}"] = str(write_scene_voice(folder / f"spec_{language}_{platform}.json", folder, language, model_dir, platform, voice_name).name)
+                        speed = float(payload.get(f"speed_{language}") or os.getenv(f"{'ENGLISH' if language == 'en' else 'HINDI'}_TTS_SPEED", "1.0"))
+                        result[f"{language}_{platform}"] = str(write_scene_voice(folder / f"spec_{language}_{platform}.json", folder, language, model_dir, platform, voice_name, speed).name)
             else:
                 result = {key: str(path.name) for key, path in render_platforms(folder).items()}
             return self.send_json({"ok": True, "stage": stage, "result": result, "topic": topic_from_dir(folder)})

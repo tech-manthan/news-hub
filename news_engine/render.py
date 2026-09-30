@@ -7,6 +7,14 @@ import subprocess
 from pathlib import Path
 
 
+def render_settings() -> dict[str, str]:
+    return {
+        "bgPreset": os.getenv("NEWS_BG_PRESET", "midnight"),
+        "font": os.getenv("NEWS_FONT", "inter"),
+        "template": os.getenv("NEWS_TEMPLATE", "editorial"),
+    }
+
+
 def _filter_path(path: Path) -> str:
     return str(path).replace("\\", "\\\\").replace(":", "\\:").replace("'", "\\'")
 
@@ -119,6 +127,6 @@ def render_platforms(topic_dir: Path) -> dict[str, Path]:
                 if not scene.get("asset_id") and scene.get("type") in ("image", "screenshot_scroll") and asset_ids:
                     scene["asset_id"] = next((asset_sources.get(source_id) for source_id in scene.get("source_ids", []) if asset_sources.get(source_id)), asset_ids[index % len(asset_ids)])
                 scenes.append({**scene, "duration": voice_scene.get("duration", 4), "words": voice_scene.get("words", [])})
-            props = {"title": spec["title"], "language": language, "platform": platform, "audio": str(audio.resolve()), "scenes": scenes, "assets": str((topic_dir / "assets").resolve())}
+            props = {"title": spec["title"], "language": language, "platform": platform, "audio": str(audio.resolve()), "scenes": scenes, "assets": str((topic_dir / "assets").resolve()), **render_settings()}
             outputs[f"{language}_{platform}"] = _render_remotion(props, output, topic_dir) or render_short(audio, spec["title"], language, output)
     return outputs

@@ -124,6 +124,8 @@ data/voices/hi_IN-pratham-medium.onnx.json
 
 The voice stage writes one WAV per scene and word-level timing metadata, so captions do not need a second transcription service.
 
+To add another local Piper voice from the dashboard, open **Settings → Voices**, enter its official id (for example `en_US-amy-medium`), and click **Install voice**. The model and its `.onnx.json` configuration are downloaded into `TTS_MODEL_DIR`; the new model then appears in both voice selectors. The same panel includes independent English/Hindi speed controls and a voice preview. Piper’s supported voice ids are documented in its [official voice list](https://github.com/OHF-Voice/piper1-gpl/blob/main/docs/VOICES.md).
+
 ## 5. Generate a topic
 
 Research only:
@@ -184,7 +186,7 @@ Recommended review flow:
 
 The dashboard stores saved settings with higher precedence than `.env`, followed by code defaults. No scheduler or build command publishes by itself.
 
-The left rail’s **Trending loop** can repeatedly fetch the configured beat, capture source visuals, generate both scripts, synthesize both voices, and render all four outputs. It stops at the review queue; it never approves or publishes. The top-right Settings button opens the local workspace configuration drawer for query, freshness, browser capture, voice selection, and renderer choice.
+The left rail’s **Trending loop** can repeatedly fetch the configured beat, capture source visuals, generate both scripts, synthesize both voices, and render all four outputs. It stops at the review queue; it never approves or publishes. The top-right Settings button opens the local workspace configuration drawer for query, freshness, browser capture, voice selection/speed, renderer, and appearance. **Video look** controls the template (`Editorial`, `Bulletin`, `Minimal`), background (`Midnight`, `Sunset`, `Forest`, `Mono dark`), and typeface. Save settings before rerendering. To remove a story, open it and click **Delete topic**; this removes its local output folder and database record, while the demo topic is intentionally protected.
 
 Hindi copy is required to be Devanagari-first. Proper names, brands, and uppercase acronyms such as AI or Google may remain in Latin script; ordinary words such as “tech”, “runaway”, or “subscribe” are rejected by validation and sent back to Claude for correction.
 

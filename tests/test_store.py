@@ -17,6 +17,16 @@ class StoreTests(unittest.TestCase):
             self.assertTrue(store.is_approved(topic.id))
             store.close()
 
+    def test_delete_removes_topic_and_approval(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = NewsStore(Path(directory) / "news.db")
+            topic = Topic("topic-delete", "query", "headline", "summary", [])
+            store.save_topic(topic)
+            store.approve(topic.id)
+            store.delete(topic.id)
+            self.assertFalse(store.is_approved(topic.id))
+            store.close()
+
 
 if __name__ == "__main__":
     unittest.main()

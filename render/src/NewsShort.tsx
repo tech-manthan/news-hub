@@ -9,7 +9,7 @@ const sceneSchema = z.object({
   duration: z.number().optional(), words: z.array(wordSchema).optional(),
 });
 export const newsShortSchema = z.object({
-  title: z.string(), language: z.string(), platform: z.string().optional(), audio: z.string(), assets: z.string(), scenes: z.array(sceneSchema),
+  title: z.string(), language: z.string(), platform: z.string().optional(), audio: z.string(), assets: z.string(), bgPreset: z.string().optional(), font: z.string().optional(), template: z.string().optional(), scenes: z.array(sceneSchema),
 });
 type Props = z.infer<typeof newsShortSchema>;
 type Scene = Props['scenes'][number];
@@ -18,6 +18,8 @@ const COLORS = {
   en: {accent: '#8bf06c', accent2: '#4f9cff'},
   hi: {accent: '#ffb45b', accent2: '#ff6d7d'},
 };
+const BACKGROUNDS: Record<string, string> = {midnight: '#0a0e16', sunset: '#24151c', forest: '#0d1c18', mono_dark: '#111313'};
+const FONTS: Record<string, string> = {inter: 'Arial, sans-serif', poppins: 'Trebuchet MS, Arial, sans-serif', space_grotesk: 'Arial, sans-serif', plex_sans: 'Arial, Noto Sans Devanagari, sans-serif'};
 
 const Captions: React.FC<{scene: Scene}> = ({scene}) => {
   const frame = useCurrentFrame();
@@ -32,18 +34,20 @@ const Captions: React.FC<{scene: Scene}> = ({scene}) => {
   </div>;
 };
 
-const SceneView: React.FC<{scene: Scene; assets: string; language: string; index: number}> = ({scene, assets, language, index}) => {
+const SceneView: React.FC<{scene: Scene; assets: string; language: string; index: number; bgPreset?: string; font?: string; template?: string}> = ({scene, assets, language, index, bgPreset, font, template}) => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
   const colors = COLORS[language as 'en' | 'hi'] || COLORS.en;
   const enter = spring({frame, fps, config: {damping: 16, mass: 0.7}});
   const drift = interpolate(frame, [0, 90], [18, 0], {extrapolateRight: 'clamp'});
   const image = scene.asset_id ? `${assets}/${scene.asset_id}.png` : '';
-  return <AbsoluteFill style={{background: `radial-gradient(circle at 15% 12%, ${colors.accent2}35 0%, transparent 42%), radial-gradient(circle at 90% 80%, ${colors.accent}22 0%, transparent 45%), #0a0e16`, color: '#f4f7f2', fontFamily: 'Arial, Noto Sans Devanagari, sans-serif', padding: 72}}>
+  const base = BACKGROUNDS[bgPreset || 'midnight'] || BACKGROUNDS.midnight;
+  const flat = template === 'minimal';
+  return <AbsoluteFill style={{background: flat ? base : `radial-gradient(circle at 15% 12%, ${colors.accent2}35 0%, transparent 42%), radial-gradient(circle at 90% 80%, ${colors.accent}22 0%, transparent 45%), ${base}`, color: '#f4f7f2', fontFamily: FONTS[font || 'inter'] || FONTS.inter, padding: 72}}>
     <div style={{position: 'absolute', top: 0, left: 0, height: 10, width: '100%', background: `linear-gradient(90deg, ${colors.accent}, ${colors.accent2})`}} />
     <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', opacity: enter}}><div style={{fontSize: 30, letterSpacing: 5, color: colors.accent}}>NEWS ENGINE</div><div style={{fontSize: 22, color: '#aab5c6'}}>{language === 'hi' ? 'हिन्दी' : 'ENGLISH'} · {index + 1}</div></div>
     <div style={{position: 'absolute', top: 245, left: 72, right: 72, opacity: enter, transform: `translateY(${drift}px)`}}>
-      <div style={{display: 'inline-block', padding: '10px 16px', border: `1px solid ${colors.accent}88`, borderRadius: 999, color: colors.accent, fontSize: 22, textTransform: 'uppercase', letterSpacing: 2, marginBottom: 34}}>{scene.type.replace(/_/g, ' ')}</div>
+      <div style={{display: 'inline-block', padding: '10px 16px', border: `1px solid ${colors.accent}88`, borderRadius: template === 'bulletin' ? 8 : 999, color: colors.accent, fontSize: 22, textTransform: 'uppercase', letterSpacing: 2, marginBottom: 34}}>{template === 'bulletin' ? 'NEWS BULLETIN' : scene.type.replace(/_/g, ' ')}</div>
       {image ? <div style={{height: 660, borderRadius: 30, overflow: 'hidden', border: '2px solid #ffffff22', background: '#141d2a', boxShadow: '0 30px 80px #0008', marginBottom: 42}}><Img src={staticFile(image)} style={{width: '100%', height: '100%', objectFit: 'cover'}} /></div> : null}
       <div style={{fontSize: image ? 54 : 82, lineHeight: 1.02, letterSpacing: -2, fontWeight: 900, maxWidth: 940}}>{scene.headline}</div>
       {scene.bullets?.length ? <div style={{display: 'grid', gap: 16, marginTop: 38}}>{scene.bullets.map((bullet, bulletIndex) => <div key={bulletIndex} style={{display: 'flex', gap: 18, alignItems: 'center', padding: '17px 20px', background: '#ffffff0d', border: '1px solid #ffffff18', borderRadius: 16, fontSize: 32, fontWeight: 700}}><span style={{display: 'grid', placeItems: 'center', width: 38, height: 38, borderRadius: 12, background: colors.accent, color: '#07100b', fontSize: 22}}>{bulletIndex + 1}</span>{bullet}</div>)}</div> : null}
@@ -53,14 +57,14 @@ const SceneView: React.FC<{scene: Scene; assets: string; language: string; index
   </AbsoluteFill>;
 };
 
-export const NewsShort: React.FC<Props> = ({language, platform, audio, assets, scenes}) => {
+export const NewsShort: React.FC<Props> = ({language, platform, audio, assets, scenes, bgPreset, font, template}) => {
   let start = 0;
   return <AbsoluteFill style={{background: '#0a0e16'}}>
     {scenes.map((scene, index) => {
       const from = Math.round(start * 30);
       const duration = Math.max(1, Math.round((scene.duration || 4) * 30));
       start += scene.duration || 4;
-      return <Sequence key={`${scene.type}-${index}`} from={from} durationInFrames={duration}><SceneView scene={scene} assets={assets} language={language} index={index} /></Sequence>;
+      return <Sequence key={`${scene.type}-${index}`} from={from} durationInFrames={duration}><SceneView scene={scene} assets={assets} language={language} index={index} bgPreset={bgPreset} font={font} template={template} /></Sequence>;
     })}
     {audio ? <Audio src={staticFile(audio)} /> : null}
     <div style={{position: 'absolute', bottom: 0, left: 0, height: 8, width: '100%', background: '#ffffff1c'}}><Progress /></div>
