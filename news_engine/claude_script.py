@@ -10,8 +10,9 @@ from pathlib import Path
 from .models import Topic
 from .spec import LanguageSpec, platform_variant, validate_spec
 
-SYSTEM = """You write factual 30-45 second vertical news shorts from supplied research. Use only the supplied facts.
-No invented numbers, claims, quotes, or causal explanations. Spoken narration must sound natural and concise.
+SYSTEM = """You write factual 30-45 second vertical news shorts from supplied research, using an attention-first newsroom and marketing-editor mindset. Use only the supplied facts.
+No invented numbers, claims, quotes, or causal explanations. Spoken narration must sound natural, specific, and concise.
+Use a Hook → Hold → Payoff structure: make the promise or consequence clear in the first 1-2 seconds, reveal a new verified beat in every following scene, then close with a satisfying implication and one short platform-specific CTA.
 The first scene must state the payoff immediately. The final scene is a one-sentence platform-specific CTA.
 English and Hindi specs are generated separately from the same source IDs. Avoid emojis and markdown in narration.
 For Hindi, write all narration, headlines, bullets, and CTAs in natural Devanagari Hindi. Preserve only
@@ -68,8 +69,12 @@ RESEARCH SOURCES:
 Rules:
 - 5 to 7 scenes; first hook_stat and last cta.
 - Use at least one screenshot_scroll or image scene.
-- Total narration 70-120 words.
+- Total narration 70-110 words; cut filler rather than repeating the premise.
 - Every scene source_ids must refer only to supplied IDs.
+- Plan the story as distinct beats: (1) hook with the surprising payoff or stakes, (2) strongest concrete evidence, (3) context or mechanism, (4) who/what is affected, (5) what happens next or what remains unknown, then (6) one-line CTA when using six scenes. Use only beats supported by the sources.
+- Every non-CTA scene must introduce one new fact, actor, date, number, contrast, consequence, or unanswered question. The headline, bullets, and narration must support that scene's beat rather than restate another scene.
+- Never repeat the topic headline, the same claim, or a sentence pattern across scenes. Do a silent second edit before returning JSON: remove repeated framing, generic transitions, and phrases such as "this is important", "according to the report", and "the big question" unless they carry new information.
+- Do not open with "In this video", "Today we are talking about", or background setup. Start with a claim that makes the viewer want the next sentence.
 - Instagram CTA should invite following/commenting; YouTube CTA should invite subscribing.
 - YouTube metadata is SEO-oriented; Instagram caption is conversational.
 {language_rules}

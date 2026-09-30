@@ -53,6 +53,19 @@ def validate_spec(spec: LanguageSpec, expected_source_ids: set[str]) -> list[str
     for scene in spec.scenes:
         if set(scene.source_ids) - expected_source_ids:
             errors.append(f"scene {scene.type} references an unknown source ID")
+    stopwords = {
+        "en": {"the", "and", "that", "this", "with", "from", "for", "are", "was", "has", "have", "about", "what", "why", "will", "says", "said"},
+        "hi": {"यह", "और", "एक", "की", "के", "को", "से", "में", "है", "हैं", "था", "थे", "का", "क्या", "क्यों", "अब"},
+    }.get(spec.language, set())
+    phrases: dict[tuple[str, ...], int] = {}
+    for index, scene in enumerate(spec.scenes[:-1]):
+        words = [word for word in re.findall(r"[^\W_]+", " ".join([scene.headline, scene.narration, *scene.bullets]).lower(), re.UNICODE) if len(word) > 2 and word not in stopwords]
+        for start in range(max(0, len(words) - 3)):
+            phrase = tuple(words[start:start + 4])
+            if len(phrase) == 4:
+                if phrase in phrases and phrases[phrase] != index:
+                    errors.append(f"scenes {phrases[phrase] + 1} and {index + 1} repeat the same four-word idea: {' '.join(phrase)}")
+                phrases[phrase] = index
     if spec.language == "hi":
         latin_words = sorted({word for scene in spec.scenes for text in (scene.narration, scene.headline, *scene.bullets) for word in re.findall(r"[A-Za-z]{3,}", text) if not word.isupper() and not any(char.isupper() for char in word)})
         if latin_words:

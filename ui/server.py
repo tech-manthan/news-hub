@@ -22,6 +22,7 @@ from news_engine.claude_script import write_specs  # noqa: E402
 from news_engine.env import load_env  # noqa: E402
 from news_engine.sources import NewsApiProvider, SourceConfig, SourceAuthError, select_topic  # noqa: E402
 from news_engine.research import PublicRSSProvider, google_news_feed  # noqa: E402
+from news_engine.niches.news import CATEGORY_PRESETS  # noqa: E402
 from news_engine.store import NewsStore  # noqa: E402
 from news_engine.scripts import generate_bilingual  # noqa: E402
 from news_engine.models import ShortScript, Topic, SourceArticle  # noqa: E402
@@ -160,6 +161,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
             return self.send_file(path, "audio/wav") if path.exists() and filename.endswith(".wav") else self.send_json({"error": "preview not found"}, 404)
         if parsed.path == "/api/status":
             return self.send_json({"provider": "NewsAPI" if configured() else "Google News RSS", "authenticated": configured(), "demo_available": True, "output_count": len(list_topics())})
+        if parsed.path == "/api/categories":
+            return self.send_json(CATEGORY_PRESETS)
         if parsed.path == "/api/voices":
             model_dir = Path(os.getenv("TTS_MODEL_DIR", "data/voices"))
             return self.send_json({"piper": {"en": available_voices(model_dir, "en"), "hi": available_voices(model_dir, "hi"), "catalog": {"en": voice_catalog("en"), "hi": voice_catalog("hi")}}, "kokoro": {"en": list(KOKORO_VOICES), "hi": []}, "model_dir": str(model_dir)})
@@ -196,7 +199,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         if parsed.path == "/api/topics":
             payload = self.body()
-            query = str(payload.get("query", "technology")).strip() or "technology"
+            category = str(payload.get("category", "")).strip()
+            query = str(payload.get("query", "")).strip() or CATEGORY_PRESETS.get(category, CATEGORY_PRESETS["technology"])["query"]
             try:
                 provider = NewsApiProvider(SourceConfig(name="newsapi", api_key=os.environ["NEWSAPI_KEY"])) if configured() else PublicRSSProvider(google_news_feed(os.getenv("NEWS_LANGUAGE", "en")))
                 topic = select_topic([provider], query, max_age=timedelta(hours=48), minimum_sources=1)
@@ -210,7 +214,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
         if parsed.path == "/api/automation":
             payload = self.body()
             if payload.get("enabled"):
-                return self.send_json(AUTOMATION.start(str(payload.get("query", "trending news")).strip(), int(payload.get("interval_minutes", 60))))
+                category = str(payload.get("category", "trending")).strip() or "trending"
+                default_query = CATEGORY_PRESETS.get(category, CATEGORY_PRESETS["trending"])["query"]
+                return self.send_json(AUTOMATION.start(str(payload.get("query", default_query)).strip() or default_query, int(payload.get("interval_minutes", 60)), category))
             return self.send_json(AUTOMATION.stop())
         if parsed.path == "/api/settings":
             payload = self.body()

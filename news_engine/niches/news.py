@@ -7,6 +7,17 @@ from ..models import SourceArticle, Topic
 from ..research import BrowserArticleEnricher, BrowserBackedProvider, PublicRSSProvider, google_news_feed
 from ..sources import NewsApiProvider, SourceConfig, select_topic
 
+CATEGORY_PRESETS = {
+    "trending": {"label": "Trending now", "query": "latest breaking news"},
+    "india": {"label": "India", "query": "India latest news"},
+    "world": {"label": "World", "query": "world latest news"},
+    "technology": {"label": "Technology", "query": "technology AI startups"},
+    "business": {"label": "Business", "query": "business markets economy"},
+    "sports": {"label": "Sports", "query": "sports cricket football"},
+    "entertainment": {"label": "Entertainment", "query": "entertainment movies music"},
+    "science": {"label": "Science", "query": "science space research"},
+}
+
 
 @dataclass
 class NewsAdapter:

@@ -23,16 +23,16 @@ class TrendingAutomation:
         self.stop_event = threading.Event()
         self.thread: threading.Thread | None = None
         self.lock = threading.Lock()
-        self.state = {"running": False, "query": "trending news", "interval_minutes": 60, "last_run": None, "last_topic": None, "last_error": None}
+        self.state = {"running": False, "category": "trending", "query": "latest breaking news", "interval_minutes": 60, "last_run": None, "last_topic": None, "last_error": None}
 
-    def start(self, query: str, interval_minutes: int) -> dict:
+    def start(self, query: str, interval_minutes: int, category: str = "trending") -> dict:
         interval_minutes = max(5, min(1440, int(interval_minutes)))
         with self.lock:
             if self.thread and self.thread.is_alive():
-                self.state.update({"query": query, "interval_minutes": interval_minutes})
+                self.state.update({"category": category, "query": query, "interval_minutes": interval_minutes})
                 return dict(self.state)
             self.stop_event.clear()
-            self.state.update({"running": True, "query": query or "trending news", "interval_minutes": interval_minutes, "last_error": None})
+            self.state.update({"running": True, "category": category, "query": query or "latest breaking news", "interval_minutes": interval_minutes, "last_error": None})
             self.thread = threading.Thread(target=self._loop, name="news-trending-automation", daemon=True)
             self.thread.start()
             return dict(self.state)

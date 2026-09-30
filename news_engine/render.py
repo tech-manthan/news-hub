@@ -4,6 +4,7 @@ import json
 import os
 import shutil
 import subprocess
+import uuid
 from pathlib import Path
 
 
@@ -19,9 +20,9 @@ def _filter_path(path: Path) -> str:
     return str(path).replace("\\", "\\\\").replace(":", "\\:").replace("'", "\\'")
 
 
-def _remotion_static_props(topic_dir: Path, audio: Path) -> dict[str, str]:
+def _remotion_static_props(topic_dir: Path, audio: Path, public_name: str | None = None) -> dict[str, str]:
     """Return paths addressed through Remotion's public static-file server."""
-    prefix = Path("news-engine") / topic_dir.name
+    prefix = Path("news-engine") / (public_name or topic_dir.name)
     return {"audio": (prefix / audio.name).as_posix(), "assets": (prefix / "assets").as_posix()}
 
 
@@ -59,7 +60,10 @@ def _render_remotion(props: dict, output: Path, topic_dir: Path) -> Path | None:
     binary = render_dir / "node_modules" / ".bin" / "remotion"
     if not binary.exists():
         raise RuntimeError("REMOTION_RENDER=1 but render/node_modules is missing; run `cd render && npm install`")
-    public_root = render_dir / "public" / "news-engine" / topic_dir.name
+    # Isolate concurrent manual and automated renders so one job cannot remove
+    # another job's audio while Remotion is still reading it.
+    public_name = f"{topic_dir.name}-{output.stem}-{uuid.uuid4().hex[:8]}"
+    public_root = render_dir / "public" / "news-engine" / public_name
     props_path = output.with_suffix(".props.json")
     public_root.parent.mkdir(parents=True, exist_ok=True)
     shutil.rmtree(public_root, ignore_errors=True)
@@ -68,7 +72,7 @@ def _render_remotion(props: dict, output: Path, topic_dir: Path) -> Path | None:
     assets = topic_dir / "assets"
     if assets.exists():
         shutil.copytree(assets, public_root / "assets", dirs_exist_ok=True)
-    remotion_props = {**props, **_remotion_static_props(topic_dir, Path(props["audio"]))}
+    remotion_props = {**props, **_remotion_static_props(topic_dir, Path(props["audio"]), public_name)}
     props_path.write_text(json.dumps(remotion_props, ensure_ascii=False), encoding="utf-8")
     output.parent.mkdir(parents=True, exist_ok=True)
     command = [str(binary), "render", "src/index.ts", "NewsShort", str(output), "--props", str(props_path), "--codec", "h264", "--width", "1080", "--height", "1920", "--fps", "30"]

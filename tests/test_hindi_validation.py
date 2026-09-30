@@ -19,6 +19,21 @@ class HindiValidationTests(unittest.TestCase):
         errors = validate_spec(spec, {"s1"})
         self.assertTrue(any("Devanagari" in error for error in errors))
 
+    def test_repeated_scene_idea_is_rejected(self):
+        spec = LanguageSpec(
+            language="en", title="Market update", scenes=[
+                {"type": "hook_stat", "narration": "Markets are moving after a surprise policy decision today.", "headline": "Markets move after policy decision", "source_ids": ["s1"]},
+                {"type": "image", "narration": "Markets are moving after a surprise policy decision today.", "headline": "Markets move after policy decision", "source_ids": ["s1"]},
+                {"type": "bullets", "narration": "Investors are watching the next announcement.", "headline": "What comes next", "source_ids": ["s1"], "bullets": ["Watch the next announcement"]},
+                {"type": "image", "narration": "The decision changes borrowing costs for businesses.", "headline": "Business impact", "source_ids": ["s1"]},
+                {"type": "cta", "narration": "Subscribe for the next verified update.", "headline": "Follow the story", "source_ids": ["s1"]},
+            ],
+            caption="Market update", hashtags=["#markets", "#business", "#news"], youtube_title="Market update",
+            youtube_description="Market update", youtube_tags=["markets", "business", "news"], instagram_cta="Follow for updates.", youtube_cta="Subscribe for updates.", source_ids=["s1"],
+        )
+        errors = validate_spec(spec, {"s1"})
+        self.assertTrue(any("repeat the same four-word idea" in error for error in errors))
+
 
 if __name__ == "__main__":
     unittest.main()
