@@ -89,7 +89,7 @@ Remotion composes the scene cards, source image, narration audio, and language t
 NEWS_UI_OPEN=1 python -m ui
 ```
 
-Open <http://127.0.0.1:8765>. The dashboard provides source evidence, bilingual script review, language/platform selection, a one-click **Build all** action (script → assets → voice → render), individual stage reruns, video preview, approval state, and manual publish actions. Nothing is posted without an explicit approval and publish click.
+Open <http://127.0.0.1:8765>. The dashboard provides source evidence, a four-video gallery, bilingual script review, selectable Piper voices with preview, language/platform selection, a one-click **Build all** action (script → assets → voice → render), individual stage reruns, a trending automation loop, video preview, approval state, settings, and manual publish actions. Nothing is posted without an explicit approval and publish click.
 
 To schedule local builds with macOS’ native scheduler (still never publishing automatically):
 

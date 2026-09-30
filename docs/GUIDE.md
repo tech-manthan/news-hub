@@ -71,6 +71,8 @@ The default research path is free Google News RSS. `NEWSAPI_KEY` is optional; le
 | `TTS_MODEL_DIR` | No | Directory containing Piper models. |
 | `ENGLISH_TTS_MODEL` | No | Documented English model path; the voice stage uses the matching file in `TTS_MODEL_DIR`. |
 | `HINDI_TTS_MODEL` | No | Documented Hindi model path; the voice stage uses the matching file in `TTS_MODEL_DIR`. |
+| `ENGLISH_TTS_VOICE` | No | Selected English Piper `.onnx` filename; can also be changed in dashboard Settings. |
+| `HINDI_TTS_VOICE` | No | Selected Hindi Piper `.onnx` filename; can also be changed in dashboard Settings. |
 | `REMOTION_RENDER` | No | Set `1` to use the installed Remotion renderer; `0` uses FFmpeg. |
 | `NEWS_UI_PORT` | No | Local dashboard port; defaults to `8765`. |
 | `NEWS_UI_OPEN` | No | Set `1` to open a browser on startup; set `0` for headless startup. |
@@ -181,6 +183,8 @@ Recommended review flow:
 10. Click publish only after approval.
 
 The dashboard stores saved settings with higher precedence than `.env`, followed by code defaults. No scheduler or build command publishes by itself.
+
+The left rail’s **Trending loop** can repeatedly fetch the configured beat, capture source visuals, generate both scripts, synthesize both voices, and render all four outputs. It stops at the review queue; it never approves or publishes. The top-right Settings button opens the local workspace configuration drawer for query, freshness, browser capture, voice selection, and renderer choice.
 
 Hindi copy is required to be Devanagari-first. Proper names, brands, and uppercase acronyms such as AI or Google may remain in Latin script; ordinary words such as “tech”, “runaway”, or “subscribe” are rejected by validation and sent back to Claude for correction.
 

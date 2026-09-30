@@ -23,6 +23,9 @@ from news_engine.store import NewsStore  # noqa: E402
 from news_engine.scripts import generate_bilingual  # noqa: E402
 from news_engine.models import ShortScript, Topic, SourceArticle  # noqa: E402
 from news_engine.voice import write_scene_voice  # noqa: E402
+from news_engine.tts import available_voices  # noqa: E402
+from news_engine.automation import TrendingAutomation  # noqa: E402
+from news_engine.settings import read_settings, write_settings, SETTING_KEYS, SETTINGS_PATH  # noqa: E402
 from news_engine.render import render_platforms  # noqa: E402
 from news_engine.assets import write_assets  # noqa: E402
 from news_engine.spec import LanguageSpec, validate_spec  # noqa: E402
@@ -31,6 +34,10 @@ OUTPUT = ROOT / "output"
 STORE_PATH = ROOT / "data" / "news.db"
 STATIC = Path(__file__).with_name("static")
 load_env(ROOT / ".env")
+SETTINGS_PATH = ROOT / SETTINGS_PATH
+for _key, _value in read_settings(SETTINGS_PATH).items():
+    os.environ[_key] = _value
+AUTOMATION = TrendingAutomation(ROOT)
 
 
 def demo_topic() -> dict:
@@ -126,13 +133,30 @@ class DashboardHandler(BaseHTTPRequestHandler):
             return self.send_file(STATIC / "app.js", "text/javascript; charset=utf-8")
         if parsed.path.startswith("/media/topics/"):
             parts = parsed.path.split("/")
-            if len(parts) == 5 and parts[-1].startswith("short_") and parts[-1].endswith(".mp4"):
-                path = OUTPUT / Path(unquote(parts[3])).name / parts[4]
-                if path.exists():
-                    return self.send_file(path, "video/mp4")
+            if len(parts) == 5:
+                topic_dir = OUTPUT / Path(unquote(parts[3])).name
+                filename = Path(unquote(parts[4])).name
+                if filename.startswith("short_") and filename.endswith(".mp4"):
+                    path = topic_dir / filename
+                    if path.exists():
+                        return self.send_file(path, "video/mp4")
+                if filename.startswith("audio_") and filename.endswith(".wav"):
+                    path = topic_dir / filename
+                    if path.exists():
+                        return self.send_file(path, "audio/wav")
             return self.send_json({"error": "media not found"}, 404)
         if parsed.path == "/api/status":
             return self.send_json({"provider": "NewsAPI" if configured() else "Google News RSS", "authenticated": configured(), "demo_available": True, "output_count": len(list_topics())})
+        if parsed.path == "/api/voices":
+            model_dir = Path(os.getenv("TTS_MODEL_DIR", "data/voices"))
+            return self.send_json({"en": available_voices(model_dir, "en"), "hi": available_voices(model_dir, "hi")})
+        if parsed.path == "/api/automation":
+            return self.send_json(AUTOMATION.snapshot())
+        if parsed.path == "/api/settings":
+            values = {key: os.getenv(key, "") for key in SETTING_KEYS}
+            values["TTS_MODEL_DIR"] = os.getenv("TTS_MODEL_DIR", "data/voices")
+            values["has_meta_token"] = bool(os.getenv("META_USER_TOKEN", "").strip())
+            return self.send_json(values)
         if parsed.path == "/api/topics":
             topics = list_topics()
             return self.send_json(topics or [demo_topic()])
@@ -140,6 +164,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
             topic_id = unquote(parsed.path.rsplit("/", 1)[-1])
             topic = next((topic for topic in list_topics() if topic["id"] == topic_id), None)
             return self.send_json(topic or (demo_topic() if topic_id == "demo-ai-policy" else {"error": "topic not found"}), 200 if topic or topic_id == "demo-ai-policy" else 404)
+        if parsed.path.startswith("/api/"):
+            return self.send_json({"error": "API route not found. Restart the News Engine server."}, 404)
         self.send_error(404)
 
     def do_POST(self):
@@ -156,6 +182,20 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 store.close()
                 return self.send_json(topic.to_dict(), 201)
             except (SourceAuthError, ValueError, RuntimeError) as exc:
+                return self.send_json({"error": str(exc)}, 400)
+        if parsed.path == "/api/automation":
+            payload = self.body()
+            if payload.get("enabled"):
+                return self.send_json(AUTOMATION.start(str(payload.get("query", "trending news")).strip(), int(payload.get("interval_minutes", 60))))
+            return self.send_json(AUTOMATION.stop())
+        if parsed.path == "/api/settings":
+            payload = self.body()
+            try:
+                clean = write_settings(payload, SETTINGS_PATH)
+                for key, value in clean.items():
+                    os.environ[key] = value
+                return self.send_json({"ok": True, "settings": {key: os.getenv(key, "") for key in SETTING_KEYS}})
+            except (OSError, ValueError) as exc:
                 return self.send_json({"error": str(exc)}, 400)
         if parsed.path.startswith("/api/topics/") and parsed.path.endswith("/approve"):
             topic_id = unquote(parsed.path.split("/")[3])
@@ -177,7 +217,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 return self.send_json(topic)
             return self.send_json({"error": "topic not found"}, 404)
         if parsed.path.startswith("/api/topics/") and parsed.path.endswith("/stage"):
-            return self._run_stage(unquote(parsed.path.split("/")[3]), self.body().get("stage", ""))
+            return self._run_stage(unquote(parsed.path.split("/")[3]), self.body())
         if parsed.path.startswith("/api/topics/") and parsed.path.endswith("/script"):
             topic_id = unquote(parsed.path.split("/")[3])
             folder = OUTPUT / Path(topic_id).name
@@ -212,6 +252,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 return self.send_json({"error": str(exc)}, 400)
         if parsed.path.startswith("/api/topics/") and parsed.path.endswith("/voice"):
             topic_id = unquote(parsed.path.split("/")[3])
+            payload = self.body()
             topic = next((topic for topic in list_topics() if topic["id"] == topic_id), None)
             if not topic:
                 return self.send_json({"error": "voice generation needs a saved live topic; demo mode has no audio"}, 400)
@@ -219,8 +260,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 model_dir = Path(os.getenv("TTS_MODEL_DIR", "data/voices"))
                 manifests = {}
                 for language in ("en", "hi"):
+                    voice_name = payload.get(f"voice_{language}") or os.getenv(f"{'ENGLISH' if language == 'en' else 'HINDI'}_TTS_VOICE")
                     for platform in ("instagram", "youtube"):
-                        manifests[f"{language}_{platform}"] = read_json(write_scene_voice(OUTPUT / topic_id / f"spec_{language}_{platform}.json", OUTPUT / topic_id, language, model_dir, platform))
+                        manifests[f"{language}_{platform}"] = read_json(write_scene_voice(OUTPUT / topic_id / f"spec_{language}_{platform}.json", OUTPUT / topic_id, language, model_dir, platform, voice_name))
                 return self.send_json({"ok": True, "manifests": manifests})
             except (RuntimeError, ValueError, KeyError) as exc:
                 return self.send_json({"error": str(exc)}, 400)
@@ -236,6 +278,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
             return self._publish_platform(unquote(parsed.path.split("/")[3]), "instagram", self.body().get("language", "en"))
         if parsed.path.startswith("/api/topics/") and parsed.path.endswith("/publish/youtube"):
             return self._publish_platform(unquote(parsed.path.split("/")[3]), "youtube", self.body().get("language", "en"))
+        if parsed.path.startswith("/api/"):
+            return self.send_json({"error": "API route not found. Restart the News Engine server."}, 404)
         self.send_error(404)
 
     def _publish_platform(self, topic_id: str, platform: str, language: str = "en"):
@@ -261,8 +305,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
         except (RuntimeError, FileNotFoundError, KeyError) as exc:
             return self.send_json({"error": str(exc)}, 400)
 
-    def _run_stage(self, topic_id: str, stage: str):
+    def _run_stage(self, topic_id: str, payload: dict):
         """Run one restartable pipeline stage from the dashboard."""
+        stage = payload.get("stage", "")
         allowed = {"script", "assets", "voice", "render"}
         if stage not in allowed:
             return self.send_json({"error": f"stage must be one of: {', '.join(sorted(allowed))}"}, 400)
@@ -280,13 +325,14 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 )
                 result = {key: str(path.name) for key, path in write_specs(topic, folder).items()}
             elif stage == "assets":
-                result = {"assets": str(write_assets(research_path, folder, browser=os.getenv("PUBLIC_RESEARCH_BROWSER", "0") == "1").name)}
+                result = {"assets": str(write_assets(research_path, folder, browser=bool(payload.get("browser")) or os.getenv("PUBLIC_RESEARCH_BROWSER", "0") == "1").name)}
             elif stage == "voice":
                 model_dir = Path(os.getenv("TTS_MODEL_DIR", "data/voices"))
                 result = {}
                 for language in ("en", "hi"):
+                    voice_name = payload.get(f"voice_{language}") or os.getenv(f"{'ENGLISH' if language == 'en' else 'HINDI'}_TTS_VOICE")
                     for platform in ("instagram", "youtube"):
-                        result[f"{language}_{platform}"] = str(write_scene_voice(folder / f"spec_{language}_{platform}.json", folder, language, model_dir, platform).name)
+                        result[f"{language}_{platform}"] = str(write_scene_voice(folder / f"spec_{language}_{platform}.json", folder, language, model_dir, platform, voice_name).name)
             else:
                 result = {key: str(path.name) for key, path in render_platforms(folder).items()}
             return self.send_json({"ok": True, "stage": stage, "result": result, "topic": topic_from_dir(folder)})

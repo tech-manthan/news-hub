@@ -7,6 +7,20 @@ from typing import Protocol
 
 from .models import ShortScript
 
+DEFAULT_VOICE_MODELS = {"en": "en_US-lessac-medium.onnx", "hi": "hi_IN-pratham-medium.onnx"}
+
+
+def available_voices(model_dir: Path, language: str) -> list[str]:
+    prefix = "en_" if language == "en" else "hi_"
+    return sorted(path.name for path in model_dir.glob(f"{prefix}*.onnx"))
+
+
+def resolve_voice_model(model_dir: Path, language: str, voice_name: str | None = None) -> Path:
+    name = Path(voice_name or DEFAULT_VOICE_MODELS[language]).name
+    if not name.endswith(".onnx") or not name.startswith("en_" if language == "en" else "hi_"):
+        raise ValueError(f"invalid {language} Piper voice: {name}")
+    return model_dir / name
+
 
 class TTSBackend(Protocol):
     language: str

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import html
 import json
 from pathlib import Path
+from urllib.parse import quote
 
 
 def write_assets(research_path: Path, output_dir: Path, *, browser: bool = True) -> Path:
@@ -19,13 +21,19 @@ def write_assets(research_path: Path, output_dir: Path, *, browser: bool = True)
             page = browser_instance.new_page(viewport={"width": 1280, "height": 900}, color_scheme="dark")
             try:
                 for index, source in enumerate(research.get("sources", [])):
+                    path = asset_dir / f"source_{index}.png"
                     try:
                         page.goto(source["url"], wait_until="domcontentloaded", timeout=30_000)
-                        path = asset_dir / f"source_{index}.png"
+                        body = page.locator("body").inner_text(timeout=5).strip()
+                        if len(body) < 80:
+                            raise RuntimeError("source page returned no readable article body")
                         page.screenshot(path=str(path), full_page=False)
                         assets.append({"id": f"source_{index}", "type": "image", "file": str(path.relative_to(output_dir)), "source_id": source["id"], "url": source["url"]})
                     except Exception as exc:
-                        assets.append({"id": f"source_{index}", "type": "error", "source_id": source["id"], "error": str(exc)})
+                        card = f"""<!doctype html><html><body style='margin:0;background:#0a0e16;color:#f4f7f2;font-family:Arial,sans-serif;padding:70px'><div style='font-size:28px;letter-spacing:5px;color:#8bf06c'>NEWS ENGINE · SOURCE</div><div style='margin-top:160px;font-size:24px;color:#aab5c6'>{html.escape(source.get('publisher', 'Verified source'))}</div><h1 style='font-size:64px;line-height:1.05;margin:24px 0'>{html.escape(source.get('title', 'Source headline'))}</h1><p style='font-size:32px;line-height:1.35;color:#c8d0dc'>{html.escape(source.get('description', 'Reviewed source evidence'))}</p><div style='position:absolute;bottom:70px;font-size:20px;color:#8d9aac'>OPEN SOURCE · REVIEWED BEFORE SCRIPTING</div></body></html>"""
+                        page.goto("data:text/html," + quote(card), wait_until="load")
+                        page.screenshot(path=str(path), full_page=False)
+                        assets.append({"id": f"source_{index}", "type": "image", "file": str(path.relative_to(output_dir)), "source_id": source["id"], "url": source["url"], "fallback": True, "error": str(exc)})
             finally:
                 browser_instance.close()
     path = output_dir / "assets.json"

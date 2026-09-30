@@ -99,6 +99,11 @@ def _concat_audio(files: list[Path], output: Path) -> Path:
 
 def render_platforms(topic_dir: Path) -> dict[str, Path]:
     outputs: dict[str, Path] = {}
+    asset_ids = sorted(path.stem for path in (topic_dir / "assets").glob("*.png"))
+    asset_sources = {}
+    assets_manifest = topic_dir / "assets.json"
+    if assets_manifest.exists():
+        asset_sources = {item.get("source_id"): item.get("id") for item in json.loads(assets_manifest.read_text()).get("assets", []) if item.get("id")}
     for language in ("en", "hi"):
         for platform in ("instagram", "youtube"):
             spec = json.loads((topic_dir / f"spec_{language}_{platform}.json").read_text())
@@ -106,6 +111,14 @@ def render_platforms(topic_dir: Path) -> dict[str, Path]:
             audio = topic_dir / f"audio_{language}_{platform}.wav"
             _concat_audio([topic_dir / scene["file"] for scene in manifest["scenes"]], audio)
             output = topic_dir / f"short_{language}_{platform}.mp4"
-            props = {"title": spec["title"], "language": language, "audio": str(audio.resolve()), "scenes": spec["scenes"], "assets": str((topic_dir / "assets").resolve())}
+            voice_scenes = manifest.get("scenes", [])
+            scenes = []
+            for index, scene in enumerate(spec["scenes"]):
+                voice_scene = voice_scenes[index] if index < len(voice_scenes) else {}
+                scene = dict(scene)
+                if not scene.get("asset_id") and scene.get("type") in ("image", "screenshot_scroll") and asset_ids:
+                    scene["asset_id"] = next((asset_sources.get(source_id) for source_id in scene.get("source_ids", []) if asset_sources.get(source_id)), asset_ids[index % len(asset_ids)])
+                scenes.append({**scene, "duration": voice_scene.get("duration", 4), "words": voice_scene.get("words", [])})
+            props = {"title": spec["title"], "language": language, "platform": platform, "audio": str(audio.resolve()), "scenes": scenes, "assets": str((topic_dir / "assets").resolve())}
             outputs[f"{language}_{platform}"] = _render_remotion(props, output, topic_dir) or render_short(audio, spec["title"], language, output)
     return outputs

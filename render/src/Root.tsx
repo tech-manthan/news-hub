@@ -11,6 +11,9 @@ export const RemotionRoot: React.FC = () => (
     width={1080}
     height={1920}
     schema={newsShortSchema}
-    defaultProps={{title: 'News update', language: 'en', audio: '', assets: '', scenes: []}}
+    calculateMetadata={({props}) => ({
+      durationInFrames: Math.max(30, Math.ceil(props.scenes.reduce((total, scene) => total + (scene.duration || 4), 0) * 30)),
+    })}
+    defaultProps={{title: 'News update', language: 'en', platform: 'instagram', audio: '', assets: '', scenes: []}}
   />
 );

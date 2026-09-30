@@ -19,6 +19,16 @@
       <aside class="rail">
         <div class="rail-heading"><span>Newsroom</span><span id="topic-count" class="count-badge">0</span></div>
         <button class="new-topic" id="new-topic"><span>＋</span> New topic</button>
+        <section class="automation-card" aria-label="Trending automation">
+          <div class="automation-title"><span>Trending loop</span><i id="automation-dot"></i></div>
+          <p>Build fresh stories in the background. Review before publishing.</p>
+          <label class="automation-label" for="automation-query">Beat</label>
+          <input id="automation-query" value="trending news" aria-label="Trending news query">
+          <label class="automation-label" for="automation-interval">Every minutes</label>
+          <input id="automation-interval" type="number" min="5" value="60" aria-label="Automation interval in minutes">
+          <button class="automation-button" id="automation-toggle">Start loop</button>
+          <small id="automation-status">Off · no background build</small>
+        </section>
         <div class="rail-label">Recent coverage</div>
         <div id="topic-list" class="topic-list" role="list"></div>
         <div class="rail-footer"><span class="tiny-mark">NE</span><span>Local workspace</span><span class="live-pill">LIVE</span></div>
@@ -35,6 +45,19 @@
         <div id="topic-view" class="topic-view" hidden></div>
       </section>
     </main>
+  </div>
+
+  <div id="settings-drawer" class="settings-backdrop" hidden>
+    <aside class="settings-drawer" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+      <div class="settings-head"><div><div class="eyebrow">WORKSPACE SETTINGS</div><h2 id="settings-title">Control the desk</h2></div><button class="modal-close" id="settings-close" aria-label="Close settings">×</button></div>
+      <p class="settings-copy">Saved here takes precedence over `.env`. Tokens stay in `.env`; this panel only stores local workflow preferences.</p>
+      <form id="settings-form">
+        <div class="settings-group"><h3>Research</h3><label>Default beat/query<input name="NEWS_QUERY" placeholder="trending news"></label><label>Research language<select name="NEWS_LANGUAGE"><option value="en">English</option><option value="hi">Hindi</option></select></label><label>Freshness window (hours)<input name="NEWS_MAX_AGE_HOURS" type="number" min="1"></label><label>Minimum sources<input name="NEWS_MINIMUM_SOURCES" type="number" min="1"></label><label class="check-row"><input name="PUBLIC_RESEARCH_BROWSER" type="checkbox" value="1"> Capture article screenshots with browser</label></div>
+        <div class="settings-group"><h3>Voices</h3><label>English Piper voice<select name="ENGLISH_TTS_VOICE" id="settings-voice-en"></select></label><label>Hindi Piper voice<select name="HINDI_TTS_VOICE" id="settings-voice-hi"></select></label><p class="settings-hint">Install more free voices with Piper, then reopen this panel.</p></div>
+        <div class="settings-group"><h3>Rendering</h3><label>Renderer<select name="REMOTION_RENDER"><option value="0">FFmpeg fallback</option><option value="1">Remotion animated template</option></select></label></div>
+        <div id="settings-error" class="form-error" hidden></div><div class="settings-actions"><button type="button" class="secondary-button" id="settings-cancel">Cancel</button><button type="submit" class="primary-button">Save settings <span>→</span></button></div>
+      </form>
+    </aside>
   </div>
 
   <div id="topic-modal" class="modal-backdrop" hidden>
