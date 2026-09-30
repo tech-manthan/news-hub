@@ -117,7 +117,12 @@ class DashboardHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
-        self.wfile.write(data)
+        try:
+            self.wfile.write(data)
+        except (BrokenPipeError, ConnectionResetError):
+            # Browsers cancel/restart video range requests while scrubbing or switching previews.
+            # The client disconnect is expected and should not pollute the server log.
+            return
 
     def body(self) -> dict:
         length = int(self.headers.get("Content-Length", "0"))
