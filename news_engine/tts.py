@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from urllib.request import urlopen
 import wave
 from pathlib import Path
 from typing import Protocol
@@ -8,11 +9,32 @@ from typing import Protocol
 from .models import ShortScript
 
 DEFAULT_VOICE_MODELS = {"en": "en_US-lessac-medium.onnx", "hi": "hi_IN-pratham-medium.onnx"}
+PIPER_VOICES_URL = "https://huggingface.co/rhasspy/piper-voices/resolve/main/voices.json?download=true"
+_VOICE_CATALOG_CACHE: dict[str, list[str]] | None = None
 
 
 def available_voices(model_dir: Path, language: str) -> list[str]:
     prefix = "en_" if language == "en" else "hi_"
     return sorted(path.name for path in model_dir.glob(f"{prefix}*.onnx"))
+
+
+def voice_catalog(language: str) -> list[str]:
+    """Return official Piper model ids, falling back to known local defaults offline."""
+    global _VOICE_CATALOG_CACHE
+    if _VOICE_CATALOG_CACHE is None:
+        try:
+            with urlopen(PIPER_VOICES_URL, timeout=4) as response:
+                catalog = json.load(response)
+            _VOICE_CATALOG_CACHE = {
+                "en": sorted(f"{name}.onnx" for name in catalog if name.startswith("en_")),
+                "hi": sorted(f"{name}.onnx" for name in catalog if name.startswith("hi_")),
+            }
+        except (OSError, ValueError, TimeoutError):
+            _VOICE_CATALOG_CACHE = {
+                "en": ["en_US-amy-medium.onnx", "en_US-lessac-medium.onnx", "en_US-libritts_r-medium.onnx", "en_US-ryan-medium.onnx"],
+                "hi": ["hi_IN-pratham-medium.onnx"],
+            }
+    return _VOICE_CATALOG_CACHE.get(language, [])
 
 
 def resolve_voice_model(model_dir: Path, language: str, voice_name: str | None = None) -> Path:
