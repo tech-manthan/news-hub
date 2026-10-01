@@ -27,7 +27,7 @@ from news_engine.store import NewsStore  # noqa: E402
 from news_engine.scripts import generate_bilingual  # noqa: E402
 from news_engine.models import ShortScript, Topic, SourceArticle  # noqa: E402
 from news_engine.voice import write_scene_voice  # noqa: E402
-from news_engine.tts import KOKORO_VOICES, available_voices, voice_catalog, PiperTTS, KokoroTTS, resolve_voice_model  # noqa: E402
+from news_engine.tts import KOKORO_VOICES, available_voices, voice_catalog, PiperTTS, KokoroTTS, normalize_voice_id, resolve_voice_model  # noqa: E402
 from news_engine.automation import TrendingAutomation  # noqa: E402
 from news_engine.settings import read_settings, write_settings, SETTING_KEYS, SETTINGS_PATH  # noqa: E402
 from news_engine.render import render_platforms  # noqa: E402
@@ -242,7 +242,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 return self.send_json({"error": str(exc)}, 400)
         if parsed.path == "/api/voices/download":
             payload = self.body()
-            voice = Path(str(payload.get("voice", "")).strip()).name
+            voice = normalize_voice_id(str(payload.get("voice", "")))
             if not re.fullmatch(r"(?:en_US|hi_IN)-[a-z0-9_]+-(?:x_low|low|medium|high)", voice):
                 return self.send_json({"error": "Use a Piper voice id such as en_US-lessac-medium or hi_IN-pratham-medium"}, 400)
             model_dir = (ROOT / os.getenv("TTS_MODEL_DIR", "data/voices")).resolve()

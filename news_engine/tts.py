@@ -13,6 +13,14 @@ from typing import Protocol
 from .models import ShortScript
 
 DEFAULT_VOICE_MODELS = {"en": "en_US-lessac-medium.onnx", "hi": "hi_IN-pratham-medium.onnx"}
+OFFLINE_PIPER_CATALOG = {
+    "en": ["en_US-amy-medium.onnx", "en_US-lessac-medium.onnx", "en_US-libritts_r-medium.onnx", "en_US-ryan-medium.onnx"],
+    "hi": [
+        "hi_IN-pratham-medium.onnx",
+        "hi_IN-priyamvada-medium.onnx",
+        "hi_IN-rohan-medium.onnx",
+    ],
+}
 PIPER_VOICES_URL = "https://huggingface.co/rhasspy/piper-voices/resolve/main/voices.json?download=true"
 _VOICE_CATALOG_CACHE: dict[str, list[str]] | None = None
 KOKORO_VOICES = {
@@ -60,15 +68,18 @@ def voice_catalog(language: str) -> list[str]:
                 "hi": sorted(f"{name}.onnx" for name in catalog if name.startswith("hi_")),
             }
         except (OSError, ValueError, TimeoutError):
-            _VOICE_CATALOG_CACHE = {
-                "en": ["en_US-amy-medium.onnx", "en_US-lessac-medium.onnx", "en_US-libritts_r-medium.onnx", "en_US-ryan-medium.onnx"],
-                "hi": ["hi_IN-pratham-medium.onnx"],
-            }
+            _VOICE_CATALOG_CACHE = {language: list(voices) for language, voices in OFFLINE_PIPER_CATALOG.items()}
     return _VOICE_CATALOG_CACHE.get(language, [])
 
 
+def normalize_voice_id(voice_name: str) -> str:
+    """Accept either Piper's model id or the .onnx filename shown in the UI."""
+    name = Path(voice_name.strip()).name
+    return name[:-5] if name.endswith(".onnx") else name
+
+
 def resolve_voice_model(model_dir: Path, language: str, voice_name: str | None = None) -> Path:
-    name = Path(voice_name or DEFAULT_VOICE_MODELS[language]).name
+    name = normalize_voice_id(voice_name or DEFAULT_VOICE_MODELS[language]) + ".onnx"
     if not name.endswith(".onnx") or not name.startswith("en_" if language == "en" else "hi_"):
         raise ValueError(f"invalid {language} Piper voice: {name}")
     return model_dir / name
@@ -90,8 +101,11 @@ class PiperTTS:
 
     def synthesize(self, text: str, output: Path) -> None:
         if not self.model_path.exists():
+            voice_id = self.model_path.stem
             raise RuntimeError(
-                f"Piper model missing: {self.model_path}. Run `python scripts/setup_tts.py` first."
+                f"Piper model missing: {voice_id} at {self.model_path}. "
+                f"Install this voice from Settings, or run `python -m piper.download_voices "
+                f"--data-dir {self.model_path.parent} {voice_id}`."
             )
         try:
             from piper import PiperVoice, SynthesisConfig

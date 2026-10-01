@@ -126,6 +126,16 @@ data/voices/en_US-lessac-medium.onnx
 data/voices/en_US-lessac-medium.onnx.json
 data/voices/hi_IN-pratham-medium.onnx
 data/voices/hi_IN-pratham-medium.onnx.json
+data/voices/hi_IN-priyamvada-medium.onnx
+data/voices/hi_IN-priyamvada-medium.onnx.json
+data/voices/hi_IN-rohan-medium.onnx
+data/voices/hi_IN-rohan-medium.onnx.json
+```
+
+To install only one additional voice, pass its Piper id (with or without `.onnx`):
+
+```bash
+python scripts/setup_tts.py hi_IN-rohan-medium
 ```
 
 The voice stage writes one WAV per scene and word-level timing metadata, so captions do not need a second transcription service.
@@ -321,7 +331,7 @@ The matcher is a fixed substring check and the reply is a fixed template. It nev
 
 **`claude: command not found`** — install/login to Claude Code and make sure the shell running `.venv` can see the `claude` executable.
 
-**Voice stage says a model is missing** — rerun `python scripts/setup_tts.py`, then check the two `.onnx` paths in `.env`.
+**Voice stage says a model is missing** — open **Settings → Voices** and install the selected Piper voice, or run `python scripts/setup_tts.py <voice-id>`. The default setup installs English Lessac plus all three official Hindi voices: Pratham, Priyamvada, and Rohan. Check that the selected `HINDI_TTS_VOICE` filename exists under `TTS_MODEL_DIR`.
 
 **Browser screenshots fail** — run `python -m playwright install chromium` and keep `PUBLIC_RESEARCH_BROWSER=0` until the browser path is needed.
 
