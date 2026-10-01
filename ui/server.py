@@ -201,7 +201,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
             topic = next((topic for topic in list_topics() if topic["id"] == topic_id), None)
             return self.send_json(topic or (demo_topic() if topic_id == "demo-ai-policy" else {"error": "topic not found"}), 200 if topic or topic_id == "demo-ai-policy" else 404)
         if parsed.path.startswith("/api/"):
-            return self.send_json({"error": "API route not found. Restart the News Engine server."}, 404)
+            return self.send_json({"error": "API route not found. Restart the News Hub server."}, 404)
         self.send_error(404)
 
     def do_POST(self):
@@ -373,7 +373,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
         if parsed.path.startswith("/api/topics/") and parsed.path.endswith("/publish/youtube"):
             return self._publish_platform(unquote(parsed.path.split("/")[3]), "youtube", self.body().get("language", "en"))
         if parsed.path.startswith("/api/"):
-            return self.send_json({"error": "API route not found. Restart the News Engine server."}, 404)
+            return self.send_json({"error": "API route not found. Restart the News Hub server."}, 404)
         self.send_error(404)
 
     def _publish_platform(self, topic_id: str, platform: str, language: str = "en"):
@@ -442,10 +442,10 @@ def serve():
         server = ThreadingHTTPServer(("127.0.0.1", port), DashboardHandler)
     except OSError as exc:
         if getattr(exc, "errno", None) == 48:
-            print(f"News Engine could not start: port {port} is already in use. Stop the existing server or run NEWS_UI_PORT=8791 python -m ui.", file=sys.stderr)
+            print(f"News Hub could not start: port {port} is already in use. Stop the existing server or run NEWS_UI_PORT=8791 python -m ui.", file=sys.stderr)
             return
         raise
-    print(f"News Engine dashboard: http://127.0.0.1:{port}", flush=True)
+    print(f"News Hub dashboard: http://127.0.0.1:{port}", flush=True)
     if os.getenv("NEWS_UI_OPEN", "1") == "1":
         threading.Timer(0.35, lambda: webbrowser.open(f"http://127.0.0.1:{port}")).start()
     try:
