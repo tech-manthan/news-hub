@@ -3,7 +3,8 @@ const esc = (value) => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;
 const state = {topics: [], selected: null, detail: null, language: 'en', platform: 'instagram', categories: {}, category: 'technology', voices: {piper: {en: [], hi: []}, kokoro: {en: [], hi: []}}, voiceCatalog: {en: [], hi: []}, settings: {ENGLISH_TTS_BACKEND: 'kokoro', HINDI_TTS_BACKEND: 'piper'}, activity: []};
 
 async function api(path, options = {}) {
-  const response = await fetch(path, {headers: {'Content-Type':'application/json'}, ...options});
+  let response;
+  try { response = await fetch(path, {headers: {'Content-Type':'application/json'}, ...options}); } catch (error) { throw new Error('Cannot reach the News Engine server. Check that only one dashboard server is running and reload the page.'); }
   const raw = await response.text();
   let data;
   try { data = JSON.parse(raw); } catch { throw new Error(`Server returned HTML for ${path}. Restart the News Engine server.`); }

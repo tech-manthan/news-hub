@@ -2,7 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from ui.server import DashboardHandler
+from ui.server import DashboardHandler, research_error_message
 
 
 class _ClosedSocket:
@@ -31,6 +31,11 @@ class MediaServerTests(unittest.TestCase):
             path = Path(directory) / "preview.mp4"
             path.write_bytes(b"video")
             _Handler(path).send_file(path, "video/mp4")
+
+    def test_research_network_errors_are_actionable(self):
+        message = research_error_message(ConnectionError("NameResolutionError: news.google.com"))
+        self.assertIn("internet/DNS", message)
+        self.assertIn("NewsAPI", message)
 
 
 if __name__ == "__main__":

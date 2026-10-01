@@ -98,6 +98,15 @@ def configured() -> bool:
     return bool(os.getenv("NEWSAPI_KEY", "").strip())
 
 
+def research_error_message(exc: Exception) -> str:
+    """Turn provider/network failures into a useful dashboard error."""
+    message = str(exc).strip()
+    markers = ("NameResolutionError", "Temporary failure in name resolution", "Failed to establish a new connection", "Max retries exceeded", "timed out", "Connection refused")
+    if any(marker in message for marker in markers):
+        return "Could not reach the news source. Check your internet/DNS connection, then try again. Public RSS does not require an API key; if it remains unavailable, configure an authenticated NewsAPI source."
+    return message or "The news source returned an unknown error. Try again."
+
+
 class DashboardHandler(BaseHTTPRequestHandler):
     server_version = "NewsEngineUI/0.1"
 
@@ -210,7 +219,11 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 store.close()
                 return self.send_json(topic.to_dict(), 201)
             except (SourceAuthError, ValueError, RuntimeError) as exc:
-                return self.send_json({"error": str(exc)}, 400)
+                return self.send_json({"error": research_error_message(exc)}, 400)
+            except Exception as exc:
+                # requests/httpx transport exceptions vary by installed provider;
+                # keep them at the API boundary so the browser never sees a dropped request.
+                return self.send_json({"error": research_error_message(exc)}, 502)
         if parsed.path == "/api/automation":
             payload = self.body()
             if payload.get("enabled"):
@@ -425,7 +438,13 @@ class DashboardHandler(BaseHTTPRequestHandler):
 
 def serve():
     port = int(os.getenv("NEWS_UI_PORT", "8765"))
-    server = ThreadingHTTPServer(("127.0.0.1", port), DashboardHandler)
+    try:
+        server = ThreadingHTTPServer(("127.0.0.1", port), DashboardHandler)
+    except OSError as exc:
+        if getattr(exc, "errno", None) == 48:
+            print(f"News Engine could not start: port {port} is already in use. Stop the existing server or run NEWS_UI_PORT=8791 python -m ui.", file=sys.stderr)
+            return
+        raise
     print(f"News Engine dashboard: http://127.0.0.1:{port}", flush=True)
     if os.getenv("NEWS_UI_OPEN", "1") == "1":
         threading.Timer(0.35, lambda: webbrowser.open(f"http://127.0.0.1:{port}")).start()
